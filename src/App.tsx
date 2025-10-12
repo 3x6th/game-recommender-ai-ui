@@ -279,7 +279,7 @@ function AnimatedBackground() {
           background:
             "radial-gradient(closest-side, rgba(120,200,255,0.95), rgba(40,140,255,0.75) 50%, rgba(0,0,0,0) 85%)",
           mixBlendMode: "screen",
-        } as React.CSSProperties}
+        }}
       />
     </div>
   );
