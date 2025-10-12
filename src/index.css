@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { 
+  height: 100%; 
+  background: black; 
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+body { 
+  margin: 0; 
+  overflow: hidden; 
+}
+
+* {
+  box-sizing: border-box;
+}
