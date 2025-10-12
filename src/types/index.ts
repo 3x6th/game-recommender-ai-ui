@@ -22,3 +22,5 @@ export interface BurnoutLevel {
   description: string;
   color: string;
 }
+
+

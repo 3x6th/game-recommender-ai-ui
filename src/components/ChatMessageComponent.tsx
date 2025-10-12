@@ -50,3 +50,4 @@ export const ChatMessageComponent: React.FC<ChatMessageComponentProps> = ({ mess
     </motion.div>
   );
 };
+

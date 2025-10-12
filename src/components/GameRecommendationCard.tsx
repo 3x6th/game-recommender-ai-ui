@@ -68,3 +68,5 @@ export const GameRecommendationCard: React.FC<GameRecommendationCardProps> = ({ 
     </motion.div>
   );
 };
+
+

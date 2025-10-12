@@ -64,3 +64,5 @@ export const BurnoutIndicator: React.FC<BurnoutIndicatorProps> = ({ level }) => 
     </motion.div>
   );
 };
+
+

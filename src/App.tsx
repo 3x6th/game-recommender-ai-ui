@@ -1,19 +1,21 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
-import { Send, Sparkles, Eraser, Gamepad2, Heart } from "lucide-react";
-import { ChatMessage, GameRecommendation, BurnoutLevel } from "./types";
-import { GameRecommendationCard } from "./components/GameRecommendationCard";
+import { Send, Sparkles, Eraser, Gamepad2, Heart, AlertCircle } from "lucide-react";
+import { ChatMessage } from "./types";
+// import { GameRecommendationCard } from "./components/GameRecommendationCard"; // TODO: использовать когда будет реальное API
 import { ChatMessageComponent } from "./components/ChatMessageComponent";
 import { BurnoutIndicator } from "./components/BurnoutIndicator";
+import { useAuth } from "./hooks/useAuth";
 
 export default function PlayCureApp() {
+  const { authData, isLoading: authLoading, error: authError } = useAuth();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState<string[]>(["Low-stress", "No shooters"]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const chips = useMemo(
+  const tags = useMemo(
     () => [
       "Low-stress",
       "No shooters", 
@@ -34,12 +36,12 @@ export default function PlayCureApp() {
     []
   );
 
-  const toggleChip = (label: string) =>
+  const toggleTag = (label: string) =>
     setActive((prev) =>
       prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]
     );
 
-  const clearChips = () => setActive([]);
+  const cleartags = () => setActive([]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -103,6 +105,42 @@ export default function PlayCureApp() {
     }
   };
 
+  // Show loading screen while authenticating
+  if (authLoading) {
+    return (
+      <div className="relative min-h-dvh w-full overflow-hidden bg-black text-white flex items-center justify-center">
+        <AnimatedBackground />
+        <div className="relative z-10 text-center">
+          <div className="flex items-center gap-3 mb-4">
+            <Gamepad2 className="h-8 w-8 text-blue-400 animate-pulse" />
+            <Heart className="h-6 w-6 text-red-400 animate-pulse" />
+          </div>
+          <p className="text-zinc-400">Initializing PlayCure...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if authentication failed
+  if (authError) {
+    return (
+      <div className="relative min-h-dvh w-full overflow-hidden bg-black text-white flex items-center justify-center">
+        <AnimatedBackground />
+        <div className="relative z-10 text-center max-w-md">
+          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Connection Error</h2>
+          <p className="text-zinc-400 mb-4">{authError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-dvh w-full overflow-hidden bg-black text-white">
       <AnimatedBackground />
@@ -116,6 +154,9 @@ export default function PlayCureApp() {
               <Heart className="h-5 w-5 text-red-400" />
             </div>
             <span className="tracking-wide text-lg font-semibold uppercase text-zinc-300">PLAYCURE</span>
+            {authData?.steamId && (
+              <span className="text-xs text-zinc-500 ml-2">Steam ID: {authData.steamId}</span>
+            )}
           </div>
           <BurnoutIndicator level="medium" />
         </div>
@@ -125,7 +166,7 @@ export default function PlayCureApp() {
           {messages.length === 0 && (
             <div className="text-center text-zinc-400 py-8">
               <Sparkles className="h-8 w-8 mx-auto mb-3 opacity-50" />
-              <p>Welcome to PlayCure! Tell me about your gaming preferences or use the chips below.</p>
+              <p>Welcome to PlayCure! Tell me about your gaming preferences or use the tags below.</p>
             </div>
           )}
           {messages.map((message) => (
@@ -144,15 +185,15 @@ export default function PlayCureApp() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Chips */}
+        {/* tags */}
         <div className="mb-6 w-full">
           <div className="flex flex-wrap items-center gap-2">
-            {chips.map((label) => {
+            {tags.map((label) => {
               const isActive = active.includes(label);
               return (
                 <motion.button
                   key={label}
-                  onClick={() => toggleChip(label)}
+                  onClick={() => toggleTag(label)}
                   whileHover={{ y: -3 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   className={[
@@ -169,7 +210,7 @@ export default function PlayCureApp() {
             })}
             {active.length > 0 && (
               <button
-                onClick={clearChips}
+                onClick={cleartags}
                 className="ml-2 rounded-full border border-white/15 bg-white/0 px-3 py-1.5 text-sm text-zinc-300 backdrop-blur-md hover:bg-white/10 transition-all duration-200"
                 title="Clear all"
               >
@@ -217,7 +258,7 @@ export default function PlayCureApp() {
         </form>
 
         <div className="mt-3 text-center text-xs text-zinc-400">
-          Click on chips above to activate preferences. Everything in liquid glass style.
+          Click on tags above to activate preferences.
         </div>
       </div>
     </div>
@@ -262,7 +303,14 @@ function AnimatedBackground() {
   return (
     <div className="absolute inset-0 -z-10 pointer-events-none">
       <motion.div
-        style={{ x, y, willChange: "transform" }}
+        style={{
+          x,
+          y,
+          willChange: "transform",
+          filter: "blur(80px) saturate(200%) brightness(180%)",
+          background: "radial-gradient(closest-side, rgba(120,200,255,0.95), rgba(40,140,255,0.75) 50%, rgba(0,0,0,0) 85%)",
+          mixBlendMode: "screen",
+        }}
         className="absolute left-1/2 top-1/2 h-[110vmin] w-[110vmin] -translate-x-1/2 -translate-y-1/2 rounded-[46%]"
         animate={{
           borderRadius: [
@@ -274,12 +322,6 @@ function AnimatedBackground() {
           rotate: [0, 10, 0],
         }}
         transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-        style={{
-          filter: "blur(80px) saturate(200%) brightness(180%)",
-          background:
-            "radial-gradient(closest-side, rgba(120,200,255,0.95), rgba(40,140,255,0.75) 50%, rgba(0,0,0,0) 85%)",
-          mixBlendMode: "screen",
-        }}
       />
     </div>
   );
