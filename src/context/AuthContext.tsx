@@ -73,7 +73,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return false;
     } catch (err) {
-      console.error('Token refresh failed:', err);
+      console.error('Token refresh failed, trying pre-authorization...', err);
+
+      // If refresh fails, try pre-authorize as fallback
+      try {
+        const preAuthResponse = await authApi.preAuthorize();
+        if (preAuthResponse.accessToken) {
+          login(preAuthResponse);
+          return true;
+        }
+      } catch (preAuthError) {
+        console.error('Pre-authorization also failed:', preAuthError);
+      }
+
       logout();
       return false;
     }

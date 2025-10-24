@@ -76,7 +76,41 @@ api.interceptors.response.use(
           throw new Error('Token refresh failed');
         }
       } catch (refreshError) {
-        // Notify queued requests of failure
+        // Refresh token also expired, try to re-authenticate with preAuthorize
+        console.log('Refresh token expired, attempting pre-authorization...');
+
+        try {
+          const preAuthResponse = await axios.post<PreAuthResponse>(
+            `${API_BASE_URL}/auth/preAuthorize`,
+            {},
+            {
+              withCredentials: true,
+            }
+          );
+
+          if (preAuthResponse.data.accessToken) {
+            const { accessToken, sessionId, accessExpiresIn } = preAuthResponse.data;
+
+            tokenManager.setTokens({
+              accessToken,
+              sessionId,
+              expiresIn: accessExpiresIn,
+            });
+
+            // Process queued requests with new token
+            successRefreshQueue.forEach((callback) => callback(accessToken));
+            successRefreshQueue = [];
+            failedRefreshQueue = [];
+
+            // Retry original request
+            originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+            return api(originalRequest);
+          }
+        } catch (preAuthError) {
+          console.error('Pre-authorization also failed:', preAuthError);
+        }
+
+        // Both refresh and preAuth failed, notify queued requests
         failedRefreshQueue.forEach((callback) => callback(refreshError));
         successRefreshQueue = [];
         failedRefreshQueue = [];
