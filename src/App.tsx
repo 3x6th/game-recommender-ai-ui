@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
-import { Send, Sparkles, Eraser, Gamepad2, Heart, AlertCircle } from "lucide-react";
+import { Send, Sparkles, Eraser, Gamepad2, Heart, AlertCircle, LogOut } from "lucide-react";
 import { ChatMessage } from "./types";
 // import { GameRecommendationCard } from "./components/GameRecommendationCard"; // TODO: использовать когда будет реальное API
 import { ChatMessageComponent } from "./components/ChatMessageComponent";
@@ -8,7 +8,7 @@ import { BurnoutIndicator } from "./components/BurnoutIndicator";
 import { useAuth } from "./hooks/useAuth";
 
 export default function PlayCureApp() {
-  const { authData, isLoading: authLoading, error: authError } = useAuth();
+  const { authData, isLoading: authLoading, error: authError, logout } = useAuth();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState<string[]>(["Low-stress", "No shooters"]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -158,7 +158,17 @@ export default function PlayCureApp() {
               <span className="text-xs text-zinc-500 ml-2">Steam ID: {authData.steamId}</span>
             )}
           </div>
-          <BurnoutIndicator level="medium" />
+          <div className="flex items-center gap-4">
+            <BurnoutIndicator level="medium" />
+            <button
+              onClick={logout}
+              className="group relative inline-flex h-9 items-center justify-center gap-2 overflow-hidden rounded-lg border border-white/15 px-3 text-sm font-medium text-zinc-300 backdrop-blur-md transition hover:border-white/30 hover:bg-white/10"
+              title="Logout"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
 
         {/* Chat Messages */}

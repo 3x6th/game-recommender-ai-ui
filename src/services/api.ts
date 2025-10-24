@@ -1,7 +1,14 @@
-import axios from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { GameRecommendation, ChatMessage } from '../types';
+import { tokenManager } from '../utils/tokenManager';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+
+// Track if a refresh is in progress and queue pending requests
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+let failedRefreshQueue: Array<(error: any) => void> = [];
+let successRefreshQueue: Array<(token: string) => void> = [];
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -15,7 +22,7 @@ const api = axios.create({
 // Request interceptor to add authorization header
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    const token = tokenManager.getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -29,35 +36,94 @@ api.interceptors.request.use(
 // Response interceptor to handle token refresh
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // If 401 and not already retrying, try to refresh token
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      try {
-        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, {
-          withCredentials: true,
+      // If already refreshing, queue this request
+      if (isRefreshing && refreshPromise) {
+        return new Promise((resolve, reject) => {
+          successRefreshQueue.push((token: string) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            resolve(api(originalRequest));
+          });
+          failedRefreshQueue.push((error: any) => {
+            reject(error);
+          });
         });
+      }
 
-        const { accessToken } = response.data;
-        localStorage.setItem('accessToken', accessToken);
+      // Start refresh process
+      isRefreshing = true;
+      refreshPromise = refreshAccessToken();
 
-        // Retry original request with new token
-        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-        return api(originalRequest);
+      try {
+        const newToken = await refreshPromise;
+
+        if (newToken) {
+          // Process queued requests
+          successRefreshQueue.forEach((callback) => callback(newToken));
+          successRefreshQueue = [];
+          failedRefreshQueue = [];
+
+          // Retry original request
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
+        } else {
+          throw new Error('Token refresh failed');
+        }
       } catch (refreshError) {
-        // Refresh failed, clear tokens and redirect to login
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('sessionId');
+        // Notify queued requests of failure
+        failedRefreshQueue.forEach((callback) => callback(refreshError));
+        successRefreshQueue = [];
+        failedRefreshQueue = [];
+
+        // Clear tokens and reject
+        tokenManager.clearTokens();
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+        refreshPromise = null;
       }
     }
 
     return Promise.reject(error);
   }
 );
+
+/**
+ * Refresh the access token using the refresh token cookie
+ */
+async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const response = await axios.post(
+      `${API_BASE_URL}/auth/refresh`,
+      {},
+      {
+        withCredentials: true,
+      }
+    );
+
+    const { accessToken, accessExpiresIn, sessionId } = response.data;
+
+    if (accessToken) {
+      tokenManager.setTokens({
+        accessToken,
+        sessionId,
+        expiresIn: accessExpiresIn,
+      });
+      return accessToken;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Token refresh failed:', error);
+    return null;
+  }
+}
 
 export interface GameRecommendationRequest {
   query?: string;
@@ -87,6 +153,22 @@ export const authApi = {
     } catch (error) {
       console.error('Error during pre-authorization:', error);
       throw new Error('Failed to pre-authorize');
+    }
+  },
+
+  async refresh(): Promise<PreAuthResponse> {
+    try {
+      const response = await axios.post<PreAuthResponse>(
+        `${API_BASE_URL}/auth/refresh`,
+        {},
+        {
+          withCredentials: true,
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error during token refresh:', error);
+      throw new Error('Failed to refresh token');
     }
   }
 };
