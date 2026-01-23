@@ -2,6 +2,15 @@ const ACCESS_TOKEN_KEY = 'accessToken';
 const SESSION_ID_KEY = 'sessionId';
 const EXPIRES_AT_KEY = 'tokenExpiresAt';
 
+function base64UrlToBase64(input: string): string {
+  let base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+  const padLength = base64.length % 4;
+  if (padLength) {
+    base64 += '='.repeat(4 - padLength);
+  }
+  return base64;
+}
+
 class TokenManager {
   /**
    * Set tokens in localStorage
@@ -115,7 +124,7 @@ class TokenManager {
     // Each part should be base64 encoded
     try {
       parts.forEach(part => {
-        atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+        atob(base64UrlToBase64(part));
       });
       return true;
     } catch {
@@ -126,11 +135,11 @@ class TokenManager {
   /**
    * Decode JWT payload (without verification)
    */
-  decodeToken(token: string): any {
+  decodeToken<T = any>(token: string): T | null {
     try {
       const payload = token.split('.')[1];
-      const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-      return JSON.parse(decoded);
+      const decoded = atob(base64UrlToBase64(payload));
+      return JSON.parse(decoded) as T;
     } catch (error) {
       console.error('Failed to decode token:', error);
       return null;

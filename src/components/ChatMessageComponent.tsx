@@ -35,8 +35,8 @@ export const ChatMessageComponent: React.FC<ChatMessageComponentProps> = ({ mess
         
         {message.recommendations && message.recommendations.length > 0 && (
           <div className="mt-4 space-y-3">
-            {message.recommendations.map((game) => (
-              <GameRecommendationCard key={game.id} game={game} />
+            {message.recommendations.map((game, idx) => (
+              <GameRecommendationCard key={`${game.title}-${idx}`} game={game} />
             ))}
           </div>
         )}

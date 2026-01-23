@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { PreAuthResponse, authApi } from '../services/api';
+import { AuthSession, authApi, authSessionFromAccessToken, authSessionFromPreAuth } from '../services/api';
 import { tokenManager } from '../utils/tokenManager';
 
 interface AuthContextType {
-  authData: PreAuthResponse | null;
+  authData: AuthSession | null;
   isLoading: boolean;
   error: string | null;
   isAuthenticated: boolean;
-  login: (authResponse: PreAuthResponse) => void;
+  login: (authSession: AuthSession) => void;
   logout: () => void;
   refreshToken: () => Promise<boolean>;
 }
@@ -15,10 +15,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [authData, setAuthData] = useState<PreAuthResponse | null>(null);
+  const [authData, setAuthData] = useState<AuthSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshTokenRef = useRef<() => Promise<boolean>>(async () => false);
 
   const clearRefreshTimer = useCallback(() => {
     if (refreshTimerRef.current) {
@@ -27,6 +28,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const clearAuth = useCallback(() => {
+    clearRefreshTimer();
+    tokenManager.clearTokens();
+    setAuthData(null);
+  }, [clearRefreshTimer]);
+
   const scheduleTokenRefresh = useCallback((expiresIn: number) => {
     clearRefreshTimer();
 
@@ -34,40 +41,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const refreshTime = Math.max(expiresIn * 1000 * 0.8, expiresIn * 1000 - 60000);
 
     refreshTimerRef.current = setTimeout(() => {
-      refreshToken();
+      void refreshTokenRef.current();
     }, refreshTime);
   }, [clearRefreshTimer]);
 
-  const login = useCallback((authResponse: PreAuthResponse) => {
-    setAuthData(authResponse);
+  const login = useCallback((session: AuthSession) => {
+    setAuthData(session);
     setError(null);
 
-    if (authResponse.accessToken) {
+    if (session.accessToken) {
       tokenManager.setTokens({
-        accessToken: authResponse.accessToken,
-        sessionId: authResponse.sessionId,
+        accessToken: session.accessToken,
+        sessionId: session.sessionId,
+        expiresIn: session.accessExpiresIn,
       });
 
       // Schedule automatic refresh
-      if (authResponse.accessExpiresIn) {
-        scheduleTokenRefresh(authResponse.accessExpiresIn);
+      if (session.accessExpiresIn) {
+        scheduleTokenRefresh(session.accessExpiresIn);
       }
     }
   }, [scheduleTokenRefresh]);
 
   const logout = useCallback(() => {
-    clearRefreshTimer();
-    tokenManager.clearTokens();
-    setAuthData(null);
     setError(null);
-  }, [clearRefreshTimer]);
+    clearAuth();
+
+    // Start a new guest session for rate limiting / continuity (new sessionId).
+    void authApi
+      .preAuthorize()
+      .then((resp) => login(authSessionFromPreAuth(resp)))
+      .catch((err) => {
+        console.error('Failed to pre-authorize after logout:', err);
+        setError('Failed to authorize');
+      });
+  }, [clearAuth, login]);
 
   const refreshToken = useCallback(async (): Promise<boolean> => {
     try {
       const response = await authApi.refresh();
 
       if (response.accessToken) {
-        login(response);
+        login(authSessionFromAccessToken(response));
         return true;
       }
 
@@ -79,17 +94,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const preAuthResponse = await authApi.preAuthorize();
         if (preAuthResponse.accessToken) {
-          login(preAuthResponse);
+          login(authSessionFromPreAuth(preAuthResponse));
           return true;
         }
       } catch (preAuthError) {
         console.error('Pre-authorization also failed:', preAuthError);
       }
 
-      logout();
+      setError(err instanceof Error ? err.message : 'Failed to authorize');
+      clearAuth();
       return false;
     }
-  }, [login, logout]);
+  }, [clearAuth, login]);
+
+  useEffect(() => {
+    refreshTokenRef.current = refreshToken;
+  }, [refreshToken]);
 
   // Initialize auth on mount
   useEffect(() => {
@@ -98,27 +118,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(true);
         setError(null);
 
-        // Check if we have a stored token
-        const storedToken = tokenManager.getAccessToken();
-
-        if (storedToken && !tokenManager.isTokenExpired()) {
-          // Try to refresh to validate the token
-          const refreshed = await refreshToken();
-
-          if (!refreshed) {
-            // If refresh fails, try pre-authorize
-            const response = await authApi.preAuthorize();
-            login(response);
-          }
-        } else {
-          // No valid token, pre-authorize
+        // Prefer refresh() to restore session from cookie (works after Steam redirect too).
+        const refreshed = await refreshToken();
+        if (!refreshed) {
           const response = await authApi.preAuthorize();
-          login(response);
+          login(authSessionFromPreAuth(response));
         }
       } catch (err) {
         console.error('Auth initialization failed:', err);
         setError(err instanceof Error ? err.message : 'Failed to authorize');
-        logout();
+        clearAuth();
       } finally {
         setIsLoading(false);
       }

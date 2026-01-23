@@ -8,6 +8,9 @@ interface GameRecommendationCardProps {
 }
 
 export const GameRecommendationCard: React.FC<GameRecommendationCardProps> = ({ game }) => {
+  const steamSearchUrl =
+    game.steamUrl ?? `https://store.steampowered.com/search/?term=${encodeURIComponent(game.title)}`;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -16,11 +19,21 @@ export const GameRecommendationCard: React.FC<GameRecommendationCardProps> = ({ 
       className="relative overflow-hidden rounded-xl border border-white/15 bg-white/5 backdrop-blur-md p-4 hover:bg-white/10 transition-all duration-200"
     >
       <div className="flex justify-between items-start mb-3">
-        <h3 className="text-lg font-semibold text-white">{game.title}</h3>
+        <div className="min-w-0 pr-3">
+          <h3 className="text-lg font-semibold text-white truncate">{game.title}</h3>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">
+            <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5">
+              {game.genre}
+            </span>
+            {game.releaseYear && (
+              <span className="text-zinc-500">• {game.releaseYear}</span>
+            )}
+          </div>
+        </div>
         <div className="flex items-center gap-1 text-yellow-400">
           <Star className="h-4 w-4 fill-current" />
           <span className="text-sm font-medium">
-            {Math.round(game.confidence * 100)}%
+            {Number.isFinite(game.rating) ? game.rating.toFixed(1) : '—'}
           </span>
         </div>
       </div>
@@ -33,38 +46,29 @@ export const GameRecommendationCard: React.FC<GameRecommendationCardProps> = ({ 
         <h4 className="text-xs font-medium text-zinc-400 mb-2 uppercase tracking-wide">
           Why this game:
         </h4>
-        <ul className="space-y-1">
-          {game.reasons.map((reason, index) => (
-            <li key={index} className="text-xs text-zinc-300 flex items-center gap-2">
-              <div className="w-1 h-1 bg-blue-400 rounded-full"></div>
-              {reason}
-            </li>
-          ))}
-        </ul>
+        <p className="text-xs text-zinc-300 leading-relaxed">{game.whyRecommended}</p>
       </div>
       
       <div className="flex flex-wrap gap-1 mb-3">
-        {game.tags.map((tag, index) => (
+        {game.platforms.map((platform, index) => (
           <span
-            key={index}
+            key={`${platform}-${index}`}
             className="px-2 py-1 text-xs bg-white/10 rounded-full text-zinc-300 border border-white/10"
           >
-            {tag}
+            {platform}
           </span>
         ))}
       </div>
       
-      {game.steamUrl && (
-        <a
-          href={game.steamUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
-        >
-          <span>View on Steam</span>
-          <ExternalLink className="h-3 w-3" />
-        </a>
-      )}
+      <a
+        href={steamSearchUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+      >
+        <span>View on Steam</span>
+        <ExternalLink className="h-3 w-3" />
+      </a>
     </motion.div>
   );
 };

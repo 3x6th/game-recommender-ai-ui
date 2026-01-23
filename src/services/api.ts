@@ -1,13 +1,13 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { GameRecommendation, ChatMessage } from '../types';
+import { GameRecommendation } from '../types';
 import { tokenManager } from '../utils/tokenManager';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
 
 // Track if a refresh is in progress and queue pending requests
 let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
-let failedRefreshQueue: Array<(error: any) => void> = [];
+let failedRefreshQueue: Array<(error: unknown) => void> = [];
 let successRefreshQueue: Array<(token: string) => void> = [];
 
 const api = axios.create({
@@ -50,8 +50,8 @@ api.interceptors.response.use(
             originalRequest.headers.Authorization = `Bearer ${token}`;
             resolve(api(originalRequest));
           });
-          failedRefreshQueue.push((error: any) => {
-            reject(error);
+          failedRefreshQueue.push((err: unknown) => {
+            reject(err);
           });
         });
       }
@@ -133,17 +133,15 @@ api.interceptors.response.use(
  */
 async function refreshAccessToken(): Promise<string | null> {
   try {
-    const response = await axios.post(
-      `${API_BASE_URL}/auth/refresh`,
-      {},
-      {
-        withCredentials: true,
-      }
-    );
+    const response = await axios.post<AccessTokenResponse>(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
 
-    const { accessToken, accessExpiresIn, sessionId } = response.data;
+    const { accessToken, accessExpiresIn } = response.data;
 
     if (accessToken) {
+      const payload = tokenManager.decodeToken(accessToken);
+      const sessionId =
+        (payload && typeof payload.sub === 'string' ? payload.sub : null) ?? tokenManager.getSessionId() ?? '';
+
       tokenManager.setTokens({
         accessToken,
         sessionId,
@@ -159,24 +157,52 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
-export interface GameRecommendationRequest {
-  query?: string;
-  preferences: string[];
-  burnoutLevel?: 'low' | 'medium' | 'high' | 'critical';
-}
-
-export interface GameRecommendationResponse {
-  message: string;
-  recommendations: GameRecommendation[];
-  burnoutLevel: 'low' | 'medium' | 'high' | 'critical';
-}
-
 export interface PreAuthResponse {
   accessToken: string;
   accessExpiresIn: number;
   role: string;
   sessionId: string;
   steamId?: number;
+}
+
+export interface AccessTokenResponse {
+  accessToken: string;
+  accessExpiresIn: number;
+}
+
+export interface AuthSession {
+  accessToken: string;
+  accessExpiresIn: number;
+  role: string;
+  sessionId: string;
+  steamId?: number;
+}
+
+export function authSessionFromPreAuth(resp: PreAuthResponse): AuthSession {
+  return {
+    accessToken: resp.accessToken,
+    accessExpiresIn: resp.accessExpiresIn,
+    role: resp.role,
+    sessionId: resp.sessionId,
+    steamId: resp.steamId,
+  };
+}
+
+export function authSessionFromAccessToken(resp: AccessTokenResponse): AuthSession {
+  const payload = tokenManager.decodeToken(resp.accessToken);
+  const sessionId =
+    (payload && typeof payload.sub === 'string' ? payload.sub : null) ?? tokenManager.getSessionId() ?? '';
+  const role = payload && typeof payload.role === 'string' ? payload.role : 'GUEST';
+  const steamIdRaw = payload ? (payload as any).steamId : undefined;
+  const steamId = steamIdRaw == null ? undefined : Number(steamIdRaw);
+
+  return {
+    accessToken: resp.accessToken,
+    accessExpiresIn: resp.accessExpiresIn,
+    role,
+    sessionId,
+    steamId: Number.isFinite(steamId) ? steamId : undefined,
+  };
 }
 
 export const authApi = {
@@ -190,15 +216,9 @@ export const authApi = {
     }
   },
 
-  async refresh(): Promise<PreAuthResponse> {
+  async refresh(): Promise<AccessTokenResponse> {
     try {
-      const response = await axios.post<PreAuthResponse>(
-        `${API_BASE_URL}/auth/refresh`,
-        {},
-        {
-          withCredentials: true,
-        }
-      );
+      const response = await axios.post<AccessTokenResponse>(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
       return response.data;
     } catch (error) {
       console.error('Error during token refresh:', error);
@@ -207,27 +227,29 @@ export const authApi = {
   }
 };
 
-export const gameRecommendationApi = {
-  async getRecommendations(request: GameRecommendationRequest): Promise<GameRecommendationResponse> {
+export interface GamesProceedRequest {
+  content: string;
+  tags: string[];
+  steamId?: string | null;
+}
+
+export interface GamesProceedResponse {
+  recommendation: string;
+  success: boolean;
+  recommendations: GameRecommendation[];
+}
+
+export const gamesApi = {
+  async proceed(request: GamesProceedRequest): Promise<GamesProceedResponse> {
     try {
-      const response = await api.post<GameRecommendationResponse>('/recommendations', request);
+      const response = await api.post<GamesProceedResponse>('/games/proceed', request, {
+        // AI calls can take >10s; allow enough time for a full response.
+        timeout: 60000,
+      });
       return response.data;
     } catch (error) {
       console.error('Error fetching game recommendations:', error);
       throw new Error('Failed to get game recommendations');
-    }
-  },
-
-  async sendMessage(message: string, preferences: string[]): Promise<ChatMessage> {
-    try {
-      const response = await api.post<ChatMessage>('/chat', {
-        message,
-        preferences,
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Error sending message:', error);
-      throw new Error('Failed to send message');
     }
   }
 };

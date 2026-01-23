@@ -1,11 +1,11 @@
 export interface GameRecommendation {
-  id: string;
   title: string;
+  genre: string;
   description: string;
-  confidence: number;
-  reasons: string[];
-  tags: string[];
-  imageUrl?: string;
+  whyRecommended: string;
+  platforms: string[];
+  rating: number;
+  releaseYear: string;
   steamUrl?: string;
 }
 

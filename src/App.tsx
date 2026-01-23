@@ -1,16 +1,18 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
-import { Send, Sparkles, Eraser, Gamepad2, Heart, AlertCircle, LogOut } from "lucide-react";
+import { Send, Sparkles, Eraser, Gamepad2, Heart, AlertCircle, LogOut, LogIn } from "lucide-react";
 import { ChatMessage } from "./types";
 // import { GameRecommendationCard } from "./components/GameRecommendationCard"; // TODO: использовать когда будет реальное API
 import { ChatMessageComponent } from "./components/ChatMessageComponent";
-import { BurnoutIndicator } from "./components/BurnoutIndicator";
 import { useAuth } from "./hooks/useAuth";
+import { API_BASE_URL, gamesApi } from "./services/api";
+import { TypewriterPrompt } from "./components/TypewriterPrompt";
 
 export default function PlayCureApp() {
   const { authData, isLoading: authLoading, error: authError, logout } = useAuth();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState<string[]>(["Low-stress", "No shooters"]);
+  const [steamIdOverride, setSteamIdOverride] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -43,6 +45,16 @@ export default function PlayCureApp() {
 
   const cleartags = () => setActive([]);
 
+  const normalizeSteamId = (value: string): string => {
+    const trimmed = value.trim();
+    const profilesMatch = trimmed.match(/steamcommunity\.com\/profiles\/(\d{5,})/i);
+    if (profilesMatch?.[1]) {
+      return profilesMatch[1].slice(0, 17);
+    }
+    const digits = trimmed.replace(/[^\d]/g, '');
+    return digits.slice(0, 17);
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -55,10 +67,12 @@ export default function PlayCureApp() {
     e.preventDefault();
     if (!query.trim() && active.length === 0) return;
 
+    const content = query.trim() || `Looking for games with: ${active.join(', ')}`;
+
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       type: 'user',
-      content: query || `Looking for games with: ${active.join(', ')}`,
+      content,
       timestamp: new Date()
     };
 
@@ -67,39 +81,34 @@ export default function PlayCureApp() {
     setIsLoading(true);
 
     try {
-      // Simulate API call - replace with actual API
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      const steamIdToSend = steamIdOverride.length === 17 ? steamIdOverride : undefined;
+      const response = await gamesApi.proceed({
+        content,
+        tags: active,
+        ...(steamIdToSend ? { steamId: steamIdToSend } : {}),
+      });
+
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: "Based on your preferences, I've found some great games that should help with your gaming burnout!",
+        content: response.recommendation || "Here are some recommendations:",
         timestamp: new Date(),
-        recommendations: [
-          {
-            id: "1",
-            title: "Stardew Valley",
-            description: "A relaxing farming simulation that's perfect for unwinding after a stressful day.",
-            confidence: 0.95,
-            reasons: ["Perfect for low-stress gaming", "Great for short sessions", "Very relaxing"],
-            tags: ["Farming", "Simulation", "Relaxing", "Indie"],
-            steamUrl: "https://store.steampowered.com/app/413150/Stardew_Valley/"
-          },
-          {
-            id: "2", 
-            title: "Journey",
-            description: "A beautiful, meditative adventure game with no combat or stress.",
-            confidence: 0.88,
-            reasons: ["No violence", "Beautiful visuals", "Short and sweet"],
-            tags: ["Adventure", "Art", "Relaxing", "Short"],
-            steamUrl: "https://store.steampowered.com/app/638230/Journey/"
-          }
-        ]
+        recommendations: (response.recommendations || []).map((rec) => ({
+          ...rec,
+          steamUrl: `https://store.steampowered.com/search/?term=${encodeURIComponent(rec.title)}`,
+        }))
       };
 
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 2).toString(),
+        type: 'ai',
+        content: "Sorry — I couldn't get recommendations right now. Please try again.",
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -159,7 +168,18 @@ export default function PlayCureApp() {
             )}
           </div>
           <div className="flex items-center gap-4">
-            <BurnoutIndicator level="medium" />
+            {!authData?.steamId && (
+              <button
+                onClick={() => {
+                  window.location.href = `${API_BASE_URL}/auth/steam`;
+                }}
+                className="group relative inline-flex h-9 items-center justify-center gap-2 overflow-hidden rounded-lg border border-white/15 px-3 text-sm font-medium text-zinc-300 backdrop-blur-md transition hover:border-white/30 hover:bg-white/10"
+                title="Connect Steam"
+              >
+                <LogIn className="h-4 w-4" />
+                <span>Connect Steam</span>
+              </button>
+            )}
             <button
               onClick={logout}
               className="group relative inline-flex h-9 items-center justify-center gap-2 overflow-hidden rounded-lg border border-white/15 px-3 text-sm font-medium text-zinc-300 backdrop-blur-md transition hover:border-white/30 hover:bg-white/10"
@@ -172,11 +192,11 @@ export default function PlayCureApp() {
         </div>
 
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto mb-6 space-y-4 max-h-96">
+        <div className="flex-1 min-h-0 overflow-y-auto mb-6 space-y-4">
           {messages.length === 0 && (
-            <div className="text-center text-zinc-400 py-8">
-              <Sparkles className="h-8 w-8 mx-auto mb-3 opacity-50" />
-              <p>Welcome to PlayCure! Tell me about your gaming preferences or use the tags below.</p>
+            <div className="text-center text-zinc-400 py-10">
+              <Sparkles className="h-8 w-8 mx-auto mb-4 opacity-50" />
+              <TypewriterPrompt className="justify-center" />
             </div>
           )}
           {messages.map((message) => (
@@ -193,6 +213,34 @@ export default function PlayCureApp() {
             </div>
           )}
           <div ref={messagesEndRef} />
+        </div>
+
+        {/* SteamID override */}
+        <div className="mb-4 w-full">
+          <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 backdrop-blur-md">
+            <span className="text-xs text-zinc-400">Steam ID</span>
+            <input
+              value={steamIdOverride}
+              onChange={(e) => setSteamIdOverride(normalizeSteamId(e.target.value))}
+              placeholder="Paste SteamID64 or /profiles/ URL (optional)"
+              className="w-72 max-w-[65vw] bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-500"
+              inputMode="numeric"
+              aria-label="Steam ID override"
+            />
+            {steamIdOverride.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSteamIdOverride('')}
+                className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                title="Clear Steam ID"
+              >
+                ×
+              </button>
+            )}
+            {steamIdOverride.length > 0 && steamIdOverride.length !== 17 && (
+              <span className="ml-1 text-[10px] text-zinc-500">17 digits</span>
+            )}
+          </div>
         </div>
 
         {/* tags */}
