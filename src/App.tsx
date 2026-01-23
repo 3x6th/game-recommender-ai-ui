@@ -15,7 +15,7 @@ export default function PlayCureApp() {
   const [steamIdOverride, setSteamIdOverride] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const tags = useMemo(
     () => [
@@ -56,7 +56,9 @@ export default function PlayCureApp() {
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   };
 
   useEffect(() => {
@@ -151,12 +153,12 @@ export default function PlayCureApp() {
   }
 
   return (
-    <div className="relative min-h-dvh w-full overflow-hidden bg-black text-white">
+    <div className="relative h-dvh w-full overflow-hidden bg-black text-white">
       <AnimatedBackground />
 
-      <div className="relative z-10 mx-auto flex min-h-dvh max-w-6xl flex-col px-6 py-10">
+      <div className="relative z-10 mx-auto flex h-dvh min-h-0 max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-10">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex shrink-0 items-center justify-between sm:mb-8">
           <div className="flex items-center gap-3 opacity-90 select-none">
             <div className="flex items-center gap-2">
               <Gamepad2 className="h-6 w-6 text-blue-400" />
@@ -168,31 +170,32 @@ export default function PlayCureApp() {
             )}
           </div>
           <div className="flex items-center gap-4">
-            {!authData?.steamId && (
+            {!authData?.steamId ? (
               <button
                 onClick={() => {
                   window.location.href = `${API_BASE_URL}/auth/steam`;
                 }}
                 className="group relative inline-flex h-9 items-center justify-center gap-2 overflow-hidden rounded-lg border border-white/15 px-3 text-sm font-medium text-zinc-300 backdrop-blur-md transition hover:border-white/30 hover:bg-white/10"
-                title="Connect Steam"
+                title="Login via Steam"
               >
                 <LogIn className="h-4 w-4" />
-                <span>Connect Steam</span>
+                <span>Login via Steam</span>
+              </button>
+            ) : (
+              <button
+                onClick={logout}
+                className="group relative inline-flex h-9 items-center justify-center gap-2 overflow-hidden rounded-lg border border-white/15 px-3 text-sm font-medium text-zinc-300 backdrop-blur-md transition hover:border-white/30 hover:bg-white/10"
+                title="Logout"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Logout</span>
               </button>
             )}
-            <button
-              onClick={logout}
-              className="group relative inline-flex h-9 items-center justify-center gap-2 overflow-hidden rounded-lg border border-white/15 px-3 text-sm font-medium text-zinc-300 backdrop-blur-md transition hover:border-white/30 hover:bg-white/10"
-              title="Logout"
-            >
-              <LogOut className="h-4 w-4" />
-              <span>Logout</span>
-            </button>
           </div>
         </div>
 
         {/* Chat Messages */}
-        <div className="flex-1 min-h-0 overflow-y-auto mb-6 space-y-4">
+        <div ref={messagesContainerRef} className="scrollbar-glass flex-1 min-h-0 overflow-y-auto mb-4 space-y-4 sm:mb-6">
           {messages.length === 0 && (
             <div className="text-center text-zinc-400 py-10">
               <Sparkles className="h-8 w-8 mx-auto mb-4 opacity-50" />
@@ -212,39 +215,10 @@ export default function PlayCureApp() {
               <span>AI is thinking...</span>
             </div>
           )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* SteamID override */}
-        <div className="mb-4 w-full">
-          <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 backdrop-blur-md">
-            <span className="text-xs text-zinc-400">Steam ID</span>
-            <input
-              value={steamIdOverride}
-              onChange={(e) => setSteamIdOverride(normalizeSteamId(e.target.value))}
-              placeholder="Paste SteamID64 or /profiles/ URL (optional)"
-              className="w-72 max-w-[65vw] bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-500"
-              inputMode="numeric"
-              aria-label="Steam ID override"
-            />
-            {steamIdOverride.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setSteamIdOverride('')}
-                className="text-zinc-400 hover:text-zinc-200 transition-colors"
-                title="Clear Steam ID"
-              >
-                ×
-              </button>
-            )}
-            {steamIdOverride.length > 0 && steamIdOverride.length !== 17 && (
-              <span className="ml-1 text-[10px] text-zinc-500">17 digits</span>
-            )}
-          </div>
         </div>
 
         {/* tags */}
-        <div className="mb-6 w-full">
+        <div className="mb-4 w-full shrink-0 sm:mb-6">
           <div className="flex flex-wrap items-center gap-2">
             {tags.map((label) => {
               const isActive = active.includes(label);
@@ -266,6 +240,23 @@ export default function PlayCureApp() {
                 </motion.button>
               );
             })}
+
+            <div
+              className={[
+                "group relative overflow-hidden rounded-full border px-3 py-1.5 text-sm",
+                "backdrop-blur-md transition-all duration-200",
+                "border-white/15 bg-white/5 hover:bg-white/10",
+              ].join(" ")}
+            >
+              <input
+                value={steamIdOverride}
+                onChange={(e) => setSteamIdOverride(normalizeSteamId(e.target.value))}
+                placeholder="Steam ID"
+                className="w-44 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-500"
+                inputMode="numeric"
+                aria-label="Steam ID"
+              />
+            </div>
             {active.length > 0 && (
               <button
                 onClick={cleartags}
