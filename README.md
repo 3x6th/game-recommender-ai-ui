@@ -91,6 +91,18 @@ VITE_API_URL=http://localhost:8080/api/v1
 - Для production замените на URL вашего бэкенда
 - Файл `.env` уже добавлен в `.gitignore` и не будет закоммичен
 
+## 🚀 Deployment (GitHub Pages)
+
+Проект разворачивается на GitHub Pages через GitHub Actions (workflow: `.github/workflows/deploy-pages.yml`).
+
+- **Repo setting**: `Settings → Pages → Source: GitHub Actions`
+- **Required repo variable** (preferred) or secret:
+  - `VITE_API_URL=https://api.playcure.3x6th.xyz/api/v1`
+- **Custom domain**:
+  - `public/CNAME` коммитится в репозиторий и попадает в корень сборки (`dist/CNAME`), чтобы GitHub Pages сохранял домен `playcure.3x6th.xyz`
+- **Build-time config**:
+  - `VITE_API_URL` “запекается” на этапе сборки (изменение значения требует нового деплоя — достаточно пуша в default branch)
+
 ### API Интеграция
 
 Приложение использует следующие эндпоинты:
