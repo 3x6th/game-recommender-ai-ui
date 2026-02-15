@@ -21,6 +21,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshTokenRef = useRef<() => Promise<boolean>>(async () => false);
 
+  const getValidStoredSession = useCallback((): AuthSession | null => {
+    const accessToken = tokenManager.getAccessToken();
+    if (!accessToken || !tokenManager.isValidTokenFormat(accessToken)) {
+      return null;
+    }
+
+    const payload = tokenManager.decodeToken<{
+      exp?: number;
+      sub?: string;
+      role?: string;
+      steamId?: number | string;
+    }>(accessToken);
+
+    if (!payload || typeof payload.exp !== 'number') {
+      return null;
+    }
+
+    const expiresAtMs = payload.exp * 1000;
+    // Keep a small safety buffer so we do not race token expiry.
+    if (Date.now() >= expiresAtMs - 5000) {
+      return null;
+    }
+
+    const accessExpiresIn = Math.max(1, Math.floor((expiresAtMs - Date.now()) / 1000));
+    const sessionId =
+      typeof payload.sub === 'string' && payload.sub.trim().length > 0
+        ? payload.sub
+        : tokenManager.getSessionId() ?? '';
+
+    if (!sessionId) {
+      return null;
+    }
+
+    const role = typeof payload.role === 'string' ? payload.role : 'GUEST';
+    const steamIdValue = payload.steamId == null ? undefined : Number(payload.steamId);
+
+    return {
+      accessToken,
+      accessExpiresIn,
+      role,
+      sessionId,
+      steamId: Number.isFinite(steamIdValue) ? steamIdValue : undefined,
+    };
+  }, []);
+
   const clearRefreshTimer = useCallback(() => {
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current);
@@ -118,6 +163,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(true);
         setError(null);
 
+        const storedSession = getValidStoredSession();
+        if (storedSession) {
+          login(storedSession);
+          return;
+        }
+
         // Prefer refresh() to restore session from cookie (works after Steam redirect too).
         const refreshed = await refreshToken();
         if (!refreshed) {
@@ -138,7 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       clearRefreshTimer();
     };
-  }, []);
+  }, [clearRefreshTimer, getValidStoredSession, login, refreshToken]);
 
   const value: AuthContextType = {
     authData,
