@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { motion, useMotionValue, useSpring } from "framer-motion";
-import { Send, Sparkles, Eraser, Gamepad2, Heart, AlertCircle, LogOut, LogIn } from "lucide-react";
+import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
+import { Send, Sparkles, Eraser, Gamepad2, Heart, AlertCircle, LogOut, LogIn, ChevronDown, ChevronUp } from "lucide-react";
 import { ChatMessage } from "./types";
 // import { GameRecommendationCard } from "./components/GameRecommendationCard"; // TODO: использовать когда будет реальное API
 import { ChatMessageComponent } from "./components/ChatMessageComponent";
@@ -12,6 +12,7 @@ export default function PlayCureApp() {
   const { authData, isLoading: authLoading, error: authError, logout } = useAuth();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState<string[]>(["Low-stress", "No shooters"]);
+  const [tagsCollapsed, setTagsCollapsed] = useState(false);
   const [steamIdOverride, setSteamIdOverride] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -68,6 +69,7 @@ export default function PlayCureApp() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() && active.length === 0) return;
+    setTagsCollapsed(true);
 
     const content = query.trim() || `Looking for games with: ${active.join(', ')}`;
 
@@ -218,55 +220,83 @@ export default function PlayCureApp() {
         </div>
 
         {/* tags */}
-        <div className="mb-4 w-full shrink-0 sm:mb-6">
-          <div className="flex flex-wrap items-center gap-2">
-            {tags.map((label) => {
-              const isActive = active.includes(label);
-              return (
-                <motion.button
-                  key={label}
-                  onClick={() => toggleTag(label)}
-                  whileHover={{ y: -3 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  className={[
-                    "group relative overflow-hidden rounded-full border px-3 py-1.5 text-sm",
-                    "backdrop-blur-md transition-all duration-200",
-                    isActive
-                      ? "border-white/40 bg-white/15 shadow-[0_10px_30px_-12px_rgba(255,255,255,0.45)]"
-                      : "border-white/15 bg-white/5 hover:bg-white/10",
-                  ].join(" ")}
-                >
-                  <span className="relative z-10">{label}{isActive && " •"}</span>
-                </motion.button>
-              );
-            })}
-
-            <div
-              className={[
-                "group relative overflow-hidden rounded-full border px-3 py-1.5 text-sm",
-                "backdrop-blur-md transition-all duration-200",
-                "border-white/15 bg-white/5 hover:bg-white/10",
-              ].join(" ")}
+        <div className="mb-4 w-full shrink-0 sm:mb-5">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setTagsCollapsed((prev) => !prev)}
+              className="inline-flex items-center justify-center rounded-full border border-white/15 bg-transparent px-2.5 py-2 text-zinc-300 hover:bg-white/10 transition-all duration-200"
+              title={tagsCollapsed ? "Show" : "Hide"}
+              aria-label={tagsCollapsed ? "Show tags" : "Hide tags"}
             >
-              <input
-                value={steamIdOverride}
-                onChange={(e) => setSteamIdOverride(normalizeSteamId(e.target.value))}
-                placeholder="Steam ID"
-                className="w-44 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-500"
-                inputMode="numeric"
-                aria-label="Steam ID"
-              />
-            </div>
+              {tagsCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+
+          <div
+            className={[
+              "inline-flex items-center rounded-full border border-white/15 px-3 py-1.5 text-sm",
+              "transition-all duration-200 hover:bg-white/10",
+            ].join(" ")}
+          >
+            <input
+              value={steamIdOverride}
+              onChange={(e) => setSteamIdOverride(normalizeSteamId(e.target.value))}
+              placeholder="Steam ID"
+              className="w-44 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-500"
+              inputMode="numeric"
+              aria-label="Steam ID"
+            />
+          </div>
+
             {active.length > 0 && (
-              <button
-                onClick={cleartags}
-                className="ml-2 rounded-full border border-white/15 bg-white/0 px-3 py-1.5 text-sm text-zinc-300 backdrop-blur-md hover:bg-white/10 transition-all duration-200"
-                title="Clear all"
-              >
-                <div className="flex items-center gap-1.5"><Eraser className="h-4 w-4" /><span>Clear</span></div>
-              </button>
+              <span className="text-xs text-zinc-400">{active.length} active</span>
             )}
           </div>
+
+          <AnimatePresence initial={false}>
+            {!tagsCollapsed && (
+              <motion.div
+                key="tags-panel"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18, ease: "easeInOut" }}
+                className="mt-2"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  {tags.map((label) => {
+                    const isActive = active.includes(label);
+                    return (
+                      <motion.button
+                        key={label}
+                        onClick={() => toggleTag(label)}
+                        whileHover={{ y: -3 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        className={[
+                          "group relative overflow-hidden rounded-full border px-3 py-1.5 text-sm",
+                          "transition-all duration-200",
+                          isActive
+                            ? "border-white/40 bg-transparent shadow-[0_10px_30px_-12px_rgba(255,255,255,0.45)]"
+                            : "border-white/15 bg-transparent hover:bg-white/10",
+                        ].join(" ")}
+                      >
+                        <span className="relative z-10">{label}{isActive && " •"}</span>
+                      </motion.button>
+                    );
+                  })}
+                  {active.length > 0 && (
+                    <button
+                      onClick={cleartags}
+                      className="ml-2 rounded-full border border-white/15 bg-transparent px-3 py-1.5 text-sm text-zinc-300 hover:bg-white/10 transition-all duration-200"
+                      title="Clear all"
+                    >
+                      <div className="flex items-center gap-1.5"><Eraser className="h-4 w-4" /><span>Clear</span></div>
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Input bar */}
