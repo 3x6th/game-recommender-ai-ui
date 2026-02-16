@@ -196,111 +196,119 @@ export default function PlayCureApp() {
           </div>
         </div>
 
-        {/* Chat Messages */}
-        <div ref={messagesContainerRef} className="scrollbar-glass flex-1 min-h-0 overflow-y-auto mb-4 space-y-4 sm:mb-6">
-          {messages.length === 0 && (
-            <div className="text-center text-zinc-400 py-10">
-              <Sparkles className="h-8 w-8 mx-auto mb-4 opacity-50" />
-              <TypewriterPrompt className="justify-center" />
-            </div>
-          )}
-          {messages.map((message) => (
-            <ChatMessageComponent key={message.id} message={message} />
-          ))}
-          {isLoading && (
-            <div className="flex items-center gap-2 text-zinc-400">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-              </div>
-              <span>AI is thinking...</span>
-            </div>
-          )}
-        </div>
-
-        {/* tags */}
-        <div className="mb-4 w-full shrink-0 sm:mb-5">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setTagsCollapsed((prev) => !prev)}
-              className="inline-flex items-center justify-center rounded-full border border-white/15 bg-transparent px-2.5 py-2 text-zinc-300 hover:bg-white/10 transition-all duration-200"
-              title={tagsCollapsed ? "Show" : "Hide"}
-              aria-label={tagsCollapsed ? "Show tags" : "Hide tags"}
-            >
-              {tagsCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-
+        {/* Chat Messages + tags overlay */}
+        <div className="relative flex-1 min-h-0">
           <div
-            className={[
-              "inline-flex items-center rounded-full border border-white/15 px-3 py-1.5 text-sm",
-              "transition-all duration-200 hover:bg-white/10",
-            ].join(" ")}
+            ref={messagesContainerRef}
+            className={`scrollbar-glass h-full min-h-0 overflow-y-auto space-y-4 ${
+              tagsCollapsed ? 'pb-20 sm:pb-24' : 'pb-32 sm:pb-36'
+            }`}
           >
-            <input
-              value={steamIdOverride}
-              onChange={(e) => setSteamIdOverride(normalizeSteamId(e.target.value))}
-              placeholder="Steam ID"
-              className="w-44 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-500"
-              inputMode="numeric"
-              aria-label="Steam ID"
-            />
-          </div>
-
-            {active.length > 0 && (
-              <span className="text-xs text-zinc-400">{active.length} active</span>
+            {messages.length === 0 && (
+              <div className="text-center text-zinc-400 py-10">
+                <Sparkles className="h-8 w-8 mx-auto mb-4 opacity-50" />
+                <TypewriterPrompt className="justify-center" />
+              </div>
             )}
-          </div>
-
-          <AnimatePresence initial={false}>
-            {!tagsCollapsed && (
-              <motion.div
-                key="tags-panel"
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.18, ease: "easeInOut" }}
-                className="mt-2"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  {tags.map((label) => {
-                    const isActive = active.includes(label);
-                    return (
-                      <motion.button
-                        key={label}
-                        onClick={() => toggleTag(label)}
-                        whileHover={{ y: -3 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        className={[
-                          "group relative overflow-hidden rounded-full border px-3 py-1.5 text-sm",
-                          "transition-all duration-200",
-                          isActive
-                            ? "border-white/40 bg-transparent shadow-[0_10px_30px_-12px_rgba(255,255,255,0.45)]"
-                            : "border-white/15 bg-transparent hover:bg-white/10",
-                        ].join(" ")}
-                      >
-                        <span className="relative z-10">{label}{isActive && " •"}</span>
-                      </motion.button>
-                    );
-                  })}
-                  {active.length > 0 && (
-                    <button
-                      onClick={cleartags}
-                      className="ml-2 rounded-full border border-white/15 bg-transparent px-3 py-1.5 text-sm text-zinc-300 hover:bg-white/10 transition-all duration-200"
-                      title="Clear all"
-                    >
-                      <div className="flex items-center gap-1.5"><Eraser className="h-4 w-4" /><span>Clear</span></div>
-                    </button>
-                  )}
+            {messages.map((message) => (
+              <ChatMessageComponent key={message.id} message={message} />
+            ))}
+            {isLoading && (
+              <div className="flex items-center gap-2 text-zinc-400">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                 </div>
-              </motion.div>
+                <span>AI is thinking...</span>
+              </div>
             )}
-          </AnimatePresence>
+          </div>
+
+          {/* tags */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20">
+            <div className="pointer-events-auto flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTagsCollapsed((prev) => !prev)}
+                  className="inline-flex items-center justify-center rounded-full border border-white/20 bg-black/55 px-2.5 py-2 text-zinc-200 hover:bg-black/70 transition-all duration-200"
+                  title={tagsCollapsed ? "Show" : "Hide"}
+                  aria-label={tagsCollapsed ? "Show tags" : "Hide tags"}
+                >
+                  {tagsCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+
+                <div
+                  className={[
+                    "inline-flex items-center rounded-full border border-white/20 bg-black/55 px-3 py-1.5 text-sm",
+                    "transition-all duration-200 hover:bg-black/70",
+                  ].join(" ")}
+                >
+                  <input
+                    value={steamIdOverride}
+                    onChange={(e) => setSteamIdOverride(normalizeSteamId(e.target.value))}
+                    placeholder="Steam ID"
+                    className="w-44 bg-transparent text-sm text-zinc-200 outline-none placeholder:text-zinc-500"
+                    inputMode="numeric"
+                    aria-label="Steam ID"
+                  />
+                </div>
+
+                {active.length > 0 && (
+                  <span className="text-xs text-zinc-400">{active.length} active</span>
+                )}
+              </div>
+
+              <AnimatePresence initial={false}>
+                {!tagsCollapsed && (
+                  <motion.div
+                    key="tags-panel"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.18, ease: "easeInOut" }}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      {tags.map((label) => {
+                        const isActive = active.includes(label);
+                        return (
+                          <motion.button
+                            key={label}
+                            onClick={() => toggleTag(label)}
+                            whileHover={{ y: -3 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            className={[
+                              "group relative overflow-hidden rounded-full border px-3 py-1.5 text-sm",
+                              "backdrop-blur-md transition-all duration-200",
+                              isActive
+                                ? "border-white/45 bg-black/70 text-zinc-100 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.8)]"
+                                : "border-white/20 bg-black/55 text-zinc-200 hover:bg-black/70",
+                            ].join(" ")}
+                          >
+                            <span className="relative z-10">{label}{isActive && " •"}</span>
+                          </motion.button>
+                        );
+                      })}
+                      {active.length > 0 && (
+                        <button
+                          onClick={cleartags}
+                          className="ml-2 rounded-full border border-white/20 bg-black/55 px-3 py-1.5 text-sm text-zinc-200 hover:bg-black/70 transition-all duration-200"
+                          title="Clear all"
+                        >
+                          <div className="flex items-center gap-1.5"><Eraser className="h-4 w-4" /><span>Clear</span></div>
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
         </div>
 
         {/* Input bar */}
-        <form onSubmit={onSubmit} className="w-full">
+        <form onSubmit={onSubmit} className="relative z-10 w-full">
           <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-white/5 backdrop-blur-2xl">
             {/* Glow under input */}
             <motion.div
