@@ -1,5 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { GameRecommendation } from '../types';
+import { ChatMessageDto, ChatPageResponse, GameRecommendation } from '../types';
 import { tokenManager } from '../utils/tokenManager';
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
@@ -275,6 +275,41 @@ export const gamesApi = {
       throw new Error('Failed to get game recommendations');
     }
   }
+};
+
+// === Chat history API (PCAI-115 / PCAI-140) ===
+
+export interface ListChatsParams {
+  limit?: number;
+  offset?: number;
+}
+
+export interface GetChatMessagesParams {
+  /** ISO-8601 timestamp. Required by backend. For first page send `new Date().toISOString()`. */
+  before: string;
+  limit?: number;
+}
+
+export const chatsApi = {
+  async listChats(params: ListChatsParams = {}): Promise<ChatPageResponse> {
+    const response = await api.get<ChatPageResponse>('/chats', {
+      params: {
+        ...(params.limit != null ? { limit: params.limit } : {}),
+        ...(params.offset != null ? { offset: params.offset } : {}),
+      },
+    });
+    return response.data;
+  },
+
+  async getChatMessages(chatId: string, params: GetChatMessagesParams): Promise<ChatMessageDto[]> {
+    const response = await api.get<ChatMessageDto[]>(`/chats/${chatId}/messages`, {
+      params: {
+        before: params.before,
+        ...(params.limit != null ? { limit: params.limit } : {}),
+      },
+    });
+    return response.data;
+  },
 };
 
 export default api;
