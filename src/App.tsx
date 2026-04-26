@@ -35,6 +35,7 @@ export default function PlayCureApp() {
     loadMoreMessages,
     messagesError,
     applyProceedResult,
+    selectChat,
   } = useChatContext();
 
   const [query, setQuery] = useState("");
@@ -369,7 +370,19 @@ export default function PlayCureApp() {
               )}
 
               {currentMessages.map((message) => (
-                <ChatMessageComponent key={message.id} message={message} />
+                <ChatMessageComponent
+                  key={message.id}
+                  message={message}
+                  // PCAI-112: a retryable error meta lets user reload chat history
+                  // (in case the assistant produced a follow-up message after the
+                  // error). For interactive resend we'd need to remember last user
+                  // text — out of scope here.
+                  onRetry={
+                    currentChatId
+                      ? () => selectChat(currentChatId)
+                      : undefined
+                  }
+                />
               ))}
 
               {isLoading && (

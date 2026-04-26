@@ -40,11 +40,13 @@ function toGameRecommendation(item: CardItem): GameRecommendation {
  * Convert backend ChatMessageDto (history read API) into the FE ChatMessage shape
  * used by ChatMessageComponent.
  *
- * Base meta.type support (PCAI-140):
- *   - cards / mixed -> payload.items rendered as recommendation cards;
- *                      payload.reasoning rendered as the "why these games" block
- *   - reply / status / error / unknown -> plain content (full UX for status/error
- *                      lives in PCAI-112)
+ * Full meta.type support (PCAI-112):
+ *   - reply           -> plain text content
+ *   - cards / mixed   -> payload.items rendered as recommendation cards;
+ *                        payload.reasoning rendered as the "why these games" block
+ *   - status          -> status chip above the bubble (payload.message / .state / .code)
+ *   - error           -> error block; payload.retryable -> retry button
+ *   - unknown / null  -> fallback to plain content (forward compatibility)
  */
 export function fromChatMessageDto(dto: ChatMessageDto): ChatMessage {
   const meta = dto.meta as MetaEnvelope | null | undefined;
@@ -52,15 +54,35 @@ export function fromChatMessageDto(dto: ChatMessageDto): ChatMessage {
 
   let recommendations: GameRecommendation[] | undefined;
   let reasoning: string | undefined;
+  let status: ChatMessage['status'];
+  let errorPayload: ChatMessage['error'];
 
-  if (meta && (meta.type === 'cards' || meta.type === 'mixed') && meta.payload) {
-    const payload = meta.payload as { items?: CardItem[]; reasoning?: string };
-    if (Array.isArray(payload.items) && payload.items.length > 0) {
-      recommendations = payload.items.map(toGameRecommendation);
+  if (meta && meta.payload) {
+    const payload = meta.payload as Record<string, unknown>;
+
+    if (meta.type === 'cards' || meta.type === 'mixed') {
+      const items = (payload.items as CardItem[] | undefined) ?? [];
+      if (Array.isArray(items) && items.length > 0) {
+        recommendations = items.map(toGameRecommendation);
+      }
+      const r = payload.reasoning;
+      if (typeof r === 'string' && r.trim().length > 0) {
+        reasoning = r;
+      }
+    } else if (meta.type === 'status') {
+      status = {
+        code: typeof payload.code === 'string' ? payload.code : undefined,
+        message: typeof payload.message === 'string' ? payload.message : undefined,
+        state: typeof payload.state === 'string' ? payload.state : undefined,
+      };
+    } else if (meta.type === 'error') {
+      errorPayload = {
+        code: typeof payload.code === 'string' ? payload.code : undefined,
+        message: typeof payload.message === 'string' ? payload.message : undefined,
+        retryable: payload.retryable === true,
+      };
     }
-    if (typeof payload.reasoning === 'string' && payload.reasoning.trim().length > 0) {
-      reasoning = payload.reasoning;
-    }
+    // reply / unknown -> nothing extra; content is rendered by default.
   }
 
   return {
@@ -71,5 +93,8 @@ export function fromChatMessageDto(dto: ChatMessageDto): ChatMessage {
     timestamp: new Date(dto.createdAt),
     recommendations,
     reasoning,
+    metaType: meta?.type,
+    status,
+    error: errorPayload,
   };
 }

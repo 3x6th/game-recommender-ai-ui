@@ -19,6 +19,22 @@ export interface ChatMessage {
   reasoning?: string;
   /** Backend-side message id (assistantMessageId from /proceed or messageId from history). */
   messageId?: string;
+  /**
+   * Meta envelope kind, normalized for the renderer (PCAI-112).
+   * Set only when backend supplies meta (history reads). Live /proceed
+   * responses are mapped to 'reply' / 'cards' / 'mixed' implicitly.
+   */
+  metaType?: MetaEnvelope['type'];
+  /**
+   * Status payload (PCAI-112): when metaType === 'status' the renderer
+   * shows a state chip ("thinking", "searching", ...) above the bubble.
+   */
+  status?: { code?: string; message?: string; state?: string };
+  /**
+   * Error payload (PCAI-112): when metaType === 'error' the renderer shows
+   * an error card; if retryable=true a retry button is shown.
+   */
+  error?: { code?: string; message?: string; retryable?: boolean };
 }
 
 export interface BurnoutLevel {
