@@ -15,6 +15,10 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   recommendations?: GameRecommendation[];
+  /** Aggregate explanation from the agent — why these games (PCAI-133/PCAI-139). */
+  reasoning?: string;
+  /** Backend-side message id (assistantMessageId from /proceed or messageId from history). */
+  messageId?: string;
 }
 
 export interface BurnoutLevel {

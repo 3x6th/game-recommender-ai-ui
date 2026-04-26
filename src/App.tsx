@@ -100,9 +100,12 @@ export default function PlayCureApp() {
 
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
+        messageId: response.assistantMessageId,
         type: 'ai',
         content: response.recommendation || "Here are some recommendations:",
         timestamp: new Date(),
+        // PCAI-139: aggregate explanation from the agent (rendered above the cards).
+        reasoning: response.reasoning,
         recommendations: (response.recommendations || []).map((rec) => ({
           ...rec,
           steamUrl: `https://store.steampowered.com/search/?term=${encodeURIComponent(rec.title)}`,
