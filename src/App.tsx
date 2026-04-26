@@ -307,13 +307,23 @@ export default function PlayCureApp() {
               </div>
               <span className="tracking-wide text-lg font-semibold uppercase text-zinc-300">PLAYCURE</span>
               {authData?.steamId && (
-                <span className="hidden sm:inline text-xs text-zinc-500 ml-2">Steam ID: {authData.steamId}</span>
+                <span className="text-xs text-zinc-500 ml-2 truncate max-w-[140px] sm:max-w-none">
+                  Steam ID: {authData.steamId}
+                </span>
               )}
             </div>
             <div className="flex items-center gap-4">
               {!authData?.steamId ? (
                 <button
                   onClick={() => {
+                    // PCAI-142: mark that we expect to come back from Steam, so
+                    // initializeAuth forces a /refresh and doesn't reuse the
+                    // stale guest access-token from localStorage.
+                    try {
+                      sessionStorage.setItem('pendingSteamLogin', '1');
+                    } catch {
+                      /* ignore */
+                    }
                     window.location.href = `${API_BASE_URL}/auth/steam`;
                   }}
                   className="group relative inline-flex h-9 items-center justify-center gap-2 overflow-hidden rounded-lg border border-white/15 px-3 text-sm font-medium text-zinc-300 backdrop-blur-md transition hover:border-white/30 hover:bg-white/10"
