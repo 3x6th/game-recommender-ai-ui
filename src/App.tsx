@@ -7,6 +7,7 @@ import { ChatMessageComponent } from "./components/ChatMessageComponent";
 import { useAuth } from "./hooks/useAuth";
 import { API_BASE_URL, gamesApi } from "./services/api";
 import { TypewriterPrompt } from "./components/TypewriterPrompt";
+import { generateUUID } from "./utils/uuid";
 
 export default function PlayCureApp() {
   const { authData, isLoading: authLoading, error: authError, logout } = useAuth();
@@ -86,9 +87,14 @@ export default function PlayCureApp() {
 
     try {
       const steamIdToSend = steamIdOverride.length === 17 ? steamIdOverride : undefined;
+      // PCAI-138: idempotency key — one UUID per user message. Replay of the same
+      // request (double-click, transport retry) must not duplicate the USER message
+      // on backend (PCAI-116).
+      const clientRequestId = generateUUID();
       const response = await gamesApi.proceed({
         content,
         tags: active,
+        clientRequestId,
         ...(steamIdToSend ? { steamId: steamIdToSend } : {}),
       });
 
