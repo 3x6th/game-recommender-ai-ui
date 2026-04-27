@@ -12,6 +12,19 @@ import { ChatDto, ChatMessage } from '../types';
 import { fromChatMessageDto } from '../utils/chatMessageMapper';
 import { useAuthContext } from './AuthContext';
 
+/**
+ * Format a Date as ISO_LOCAL_DATE_TIME (no trailing Z / no offset) — the
+ * backend currently binds `before` to LocalDateTime which can't parse the
+ * standard ISO string with 'Z'. See PCAI-149 (FE workaround) / PCAI-150
+ * (proper BE fix to OffsetDateTime). Once BE is fixed we can drop this
+ * and use date.toISOString() directly.
+ */
+function toLocalDateTimeNoTz(date: Date): string {
+  // toISOString() always produces a UTC string ending with 'Z' — slicing it
+  // off keeps the same instant value but in a format LocalDateTime accepts.
+  return date.toISOString().slice(0, -1);
+}
+
 const CHAT_LIST_PAGE = 30;
 const HISTORY_PAGE = 20;
 
@@ -138,7 +151,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const token = ++currentLoadTokenRef.current;
     setIsLoadingMessages(true);
 
-    const before = new Date().toISOString();
+    const before = toLocalDateTimeNoTz(new Date());
     chatsApi
       .getChatMessages(chatId, { before, limit: HISTORY_PAGE })
       .then((dtos) => {
@@ -168,7 +181,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoadingMoreMessages(true);
     try {
       // Earliest currently-loaded message is at index 0 (ASC order).
-      const before = currentMessages[0].timestamp.toISOString();
+      const before = toLocalDateTimeNoTz(currentMessages[0].timestamp);
       const dtos = await chatsApi.getChatMessages(currentChatId, {
         before,
         limit: HISTORY_PAGE,
