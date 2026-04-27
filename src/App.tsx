@@ -112,6 +112,16 @@ export default function PlayCureApp() {
     }
   }, [currentMessages]);
 
+  // PCAI-144: close drawer on ESC.
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sidebarOpen]);
+
   // Infinite-scroll: when user reaches the very top, fetch older messages.
   const handleHistoryScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (!hasMoreMessages || isLoadingMoreMessages) return;
@@ -235,7 +245,8 @@ export default function PlayCureApp() {
     <div className="relative h-dvh w-full overflow-hidden bg-black text-white">
       <AnimatedBackground />
 
-      {/* Mobile sidebar overlay */}
+      {/* PCAI-144: chat drawer — closed by default on all screen sizes,
+          opens via the burger button left of the logo. */}
       <AnimatePresence>
         {sidebarOpen && (
           <motion.div
@@ -244,7 +255,7 @@ export default function PlayCureApp() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm"
             onClick={() => setSidebarOpen(false)}
           />
         )}
@@ -253,49 +264,51 @@ export default function PlayCureApp() {
       <AnimatePresence>
         {sidebarOpen && (
           <motion.aside
-            key="mobile-sidebar"
-            initial={{ x: -300, opacity: 0 }}
+            key="chat-drawer"
+            initial={{ x: -320, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -300, opacity: 0 }}
-            transition={{ type: 'tween', duration: 0.18, ease: 'easeOut' }}
-            className="fixed inset-y-0 left-0 z-50 w-72 border-r border-white/10 bg-black/70 backdrop-blur-xl md:hidden"
+            exit={{ x: -320, opacity: 0 }}
+            transition={{ type: 'tween', duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-y-3 left-3 z-50 w-[280px] flex flex-col rounded-2xl border border-white/10 bg-black/70 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] backdrop-blur-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Chat list"
           >
             <div className="flex items-center justify-between px-3 py-3 border-b border-white/10">
-              <span className="text-sm font-semibold text-zinc-200">PLAYCURE</span>
+              <span className="tracking-wide text-sm font-semibold uppercase text-zinc-200">
+                PLAYCURE
+              </span>
               <button
                 type="button"
                 onClick={() => setSidebarOpen(false)}
-                aria-label="Close sidebar"
-                className="rounded-lg p-1 text-zinc-400 hover:bg-white/10 hover:text-zinc-100"
+                aria-label="Close chats"
+                className="rounded-lg p-1 text-zinc-400 transition hover:bg-white/10 hover:text-zinc-100"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <ChatList className="h-[calc(100%-49px)]" onSelected={() => setSidebarOpen(false)} />
+            <ChatList className="flex-1 min-h-0" onSelected={() => setSidebarOpen(false)} />
           </motion.aside>
         )}
       </AnimatePresence>
 
-      <div className="relative z-10 mx-auto flex h-dvh min-h-0 max-w-7xl gap-4 px-2 py-3 sm:px-4 sm:py-6">
-        {/* Desktop sidebar */}
-        <aside className="hidden md:flex w-64 flex-shrink-0 flex-col rounded-2xl border border-white/10 bg-black/30 backdrop-blur-xl">
-          <ChatList />
-        </aside>
-
+      <div className="relative z-10 mx-auto flex h-dvh min-h-0 max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-10">
         {/* Main column */}
-        <div className="flex min-w-0 flex-1 flex-col px-2 sm:px-4">
+        <div className="flex min-w-0 flex-1 flex-col">
           {/* Header */}
           <div className="mb-6 flex shrink-0 items-center justify-between sm:mb-8">
             <div className="flex items-center gap-2 opacity-90 select-none">
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className="md:hidden rounded-lg p-1.5 text-zinc-300 hover:bg-white/10"
+                className="group relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 backdrop-blur-md transition hover:border-white/25 hover:bg-white/10 hover:text-zinc-100"
                 aria-label="Open chats"
+                aria-expanded={sidebarOpen}
+                title="Chats"
               >
-                <Menu className="h-5 w-5" />
+                <Menu className="h-4 w-4" />
               </button>
-              <div className="flex items-center gap-2">
+              <div className="ml-1 flex items-center gap-2">
                 <Gamepad2 className="h-6 w-6 text-blue-400" />
                 <Heart className="h-5 w-5 text-red-400" />
               </div>
