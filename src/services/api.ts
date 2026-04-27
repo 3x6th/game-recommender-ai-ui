@@ -257,17 +257,15 @@ export interface GamesProceedResponse {
 export const gamesApi = {
   async proceed(request: GamesProceedRequest): Promise<GamesProceedResponse> {
     try {
-      // Send clientRequestId in BOTH the header and the body — both are accepted
-      // by the backend (header is the primary idempotency key, body is the fallback
-      // for clients that can't set custom headers).
-      const headers = request.clientRequestId
-        ? { 'X-Client-Request-Id': request.clientRequestId }
-        : undefined;
-
+      // PCAI-145: clientRequestId is sent ONLY in the body. We previously also
+      // sent it as X-Client-Request-Id, but that turns the request into a
+      // non-simple CORS request and the backend's preflight allowlist doesn't
+      // include this header — the browser blocked the POST entirely.
+      // Once the backend ships PCAI-146 (allow header in CORS) we can put it
+      // back into the header.
       const response = await api.post<GamesProceedResponse>('/games/proceed', request, {
         // AI calls can take >10s; allow enough time for a full response.
         timeout: 60000,
-        headers,
       });
       return response.data;
     } catch (error) {
