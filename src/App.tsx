@@ -293,8 +293,10 @@ export default function PlayCureApp() {
       </AnimatePresence>
 
       <div className="relative z-10 mx-auto flex h-dvh min-h-0 max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-10">
-        {/* Main column */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        {/* Main column. min-h-0 is required so that flex-1 children can shrink
+            below content size and let the inner overflow-y-auto take effect
+            (PCAI-147 — flex `min-height: auto` gotcha). */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* Header */}
           <div className="mb-6 flex shrink-0 items-center justify-between sm:mb-8">
             <div className="flex items-center gap-2 opacity-90 select-none">
