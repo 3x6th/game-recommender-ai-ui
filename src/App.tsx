@@ -34,7 +34,7 @@ export default function PlayCureApp() {
     hasMoreMessages,
     loadMoreMessages,
     messagesError,
-    applyProceedResult,
+    appendMessages,
     selectChat,
   } = useChatContext();
 
@@ -143,6 +143,11 @@ export default function PlayCureApp() {
     setQuery("");
     setIsLoading(true);
 
+    // PCAI-143: optimistic echo — show user message immediately, before /proceed
+    // returns. Without this the bubble appeared only after the response, and
+    // if the response didn't carry chatId we'd lose it entirely.
+    appendMessages([userMessage]);
+
     try {
       const steamIdToSend = steamIdOverride.length === 17 ? steamIdOverride : undefined;
       const response = await gamesApi.proceed({
@@ -168,34 +173,23 @@ export default function PlayCureApp() {
         })),
       };
 
-      // PCAI-140: server is the source of truth for chatId; if response carries
-      // one we adopt it (new chat) or stay on the current one. If backend didn't
-      // return a chatId for some reason, fall back to current/local-only render.
-      const resolvedChatId = response.chatId ?? currentChatId ?? null;
-      if (resolvedChatId) {
-        applyProceedResult({
-          chatId: resolvedChatId,
-          userMessage,
-          assistantMessage,
-        });
-      }
+      // PCAI-143: render the assistant reply unconditionally. If backend gave
+      // us a chatId (most cases), also adopt it and refresh the sidebar entry.
+      // If it didn't — still show the message in the current view.
+      appendMessages([assistantMessage], {
+        chatId: response.chatId ?? null,
+        refreshList: true,
+      });
     } catch (error) {
       console.error('Error sending message:', error);
-      // On error we don't push to the chat list; just show a transient
-      // assistant message in the current view.
-      const fallbackChatId = currentChatId;
-      if (fallbackChatId) {
-        applyProceedResult({
-          chatId: fallbackChatId,
-          userMessage,
-          assistantMessage: {
-            id: `${Date.now()}-err`,
-            type: 'ai',
-            content: "Sorry — I couldn't get recommendations right now. Please try again.",
-            timestamp: new Date(),
-          },
-        });
-      }
+      appendMessages([
+        {
+          id: `${Date.now()}-err`,
+          type: 'ai',
+          content: "Sorry — I couldn't get recommendations right now. Please try again.",
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }

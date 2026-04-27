@@ -38,15 +38,20 @@ interface ChatContextType {
   loadMoreMessages: () => Promise<void>;
   refreshChats: () => Promise<void>;
   /**
-   * Apply the result of POST /proceed to local state without an extra
-   * roundtrip: if it minted a new chat, prepend it to the list and switch
-   * current chat. Otherwise touch updatedAt for the existing one.
+   * Append messages to the currently active chat view.
+   *
+   * Use without opts for an optimistic local echo (e.g. user message before
+   * /proceed responds). Pass opts.chatId to also adopt a chat id from the
+   * server response — the sidebar gets updated/prepended when refreshList=true.
+   *
+   * If the backend doesn't return a chatId, callers should still call this
+   * with no chatId so the messages are at least visible in the current view
+   * (PCAI-143).
    */
-  applyProceedResult: (args: {
-    chatId: string;
-    userMessage: ChatMessage;
-    assistantMessage: ChatMessage;
-  }) => void;
+  appendMessages: (
+    messages: ChatMessage[],
+    opts?: { chatId?: string | null; refreshList?: boolean },
+  ) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -188,42 +193,50 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setHasMoreMessages(false);
   }, []);
 
-  const applyProceedResult = useCallback(
-    ({
-      chatId,
-      userMessage,
-      assistantMessage,
-    }: {
-      chatId: string;
-      userMessage: ChatMessage;
-      assistantMessage: ChatMessage;
-    }) => {
-      setCurrentChatId(chatId);
-      setCurrentMessages((prev) => [...prev, userMessage, assistantMessage]);
+  const appendMessages = useCallback(
+    (
+      messages: ChatMessage[],
+      opts?: { chatId?: string | null; refreshList?: boolean },
+    ) => {
+      if (messages.length === 0) return;
 
-      // Update / prepend in chat list so sidebar reflects the new activity.
-      const previewSource = assistantMessage.content || userMessage.content;
-      const preview = previewSource.length > 80 ? `${previewSource.slice(0, 77)}…` : previewSource;
-      const nowIso = new Date().toISOString();
-      setChats((prev) => {
-        const existingIdx = prev.findIndex((c) => c.chatId === chatId);
-        if (existingIdx >= 0) {
-          const updated = {
-            ...prev[existingIdx],
+      // 1) Optimistic local render — always.
+      setCurrentMessages((prev) => [...prev, ...messages]);
+
+      // 2) Adopt server-issued chatId, if any.
+      if (opts?.chatId) {
+        setCurrentChatId(opts.chatId);
+      }
+
+      // 3) Refresh sidebar entry only when requested AND we have a chatId.
+      if (opts?.refreshList && opts.chatId) {
+        const lastWithContent = [...messages].reverse().find((m) => m.content?.trim().length);
+        const previewSource = lastWithContent?.content ?? '';
+        const preview =
+          previewSource.length > 80 ? `${previewSource.slice(0, 77)}…` : previewSource;
+        const nowIso = new Date().toISOString();
+        const chatId = opts.chatId;
+
+        setChats((prev) => {
+          const existingIdx = prev.findIndex((c) => c.chatId === chatId);
+          if (existingIdx >= 0) {
+            const updated = {
+              ...prev[existingIdx],
+              updatedAt: nowIso,
+              lastMessagePreview: preview || prev[existingIdx].lastMessagePreview,
+            };
+            return [updated, ...prev.filter((_, i) => i !== existingIdx)];
+          }
+          const newChat: ChatDto = {
+            chatId,
+            status: 'ACTIVE',
             updatedAt: nowIso,
             lastMessagePreview: preview,
           };
-          return [updated, ...prev.filter((_, i) => i !== existingIdx)];
-        }
-        const newChat: ChatDto = {
-          chatId,
-          status: 'ACTIVE',
-          updatedAt: nowIso,
-          lastMessagePreview: preview,
-        };
-        setTotalChats((t) => t + 1);
-        return [newChat, ...prev];
-      });
+          setTotalChats((t) => t + 1);
+          return [newChat, ...prev];
+        });
+      }
     },
     [],
   );
@@ -248,7 +261,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loadMoreChats,
       loadMoreMessages,
       refreshChats,
-      applyProceedResult,
+      appendMessages,
     }),
     [
       chats,
@@ -267,7 +280,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loadMoreChats,
       loadMoreMessages,
       refreshChats,
-      applyProceedResult,
+      appendMessages,
     ],
   );
 
