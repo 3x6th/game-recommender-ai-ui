@@ -96,15 +96,19 @@ export const ChatMessageComponent: React.FC<ChatMessageComponentProps> = ({ mess
             )}
           </div>
         ) : (
-          <div
-            className={`rounded-2xl px-4 py-3 ${
-              message.type === 'user'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white/10 text-zinc-200 border border-white/15 backdrop-blur-md'
-            }`}
-          >
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-          </div>
+          // PCAI-151: skip the empty content bubble for AI cards/reasoning
+          // replies — they used to show a stub like "Received N recommendations".
+          message.content?.trim() && (
+            <div
+              className={`rounded-2xl px-4 py-3 ${
+                message.type === 'user'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white/10 text-zinc-200 border border-white/15 backdrop-blur-md'
+              }`}
+            >
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+            </div>
+          )
         )}
 
         {/* PCAI-139: aggregate explanation from the agent ("why these games"). */}

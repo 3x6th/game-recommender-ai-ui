@@ -169,15 +169,20 @@ export default function PlayCureApp() {
         ...(steamIdToSend ? { steamId: steamIdToSend } : {}),
       });
 
+      // PCAI-151: response.recommendation is a server-side stub like
+      // "Received N recommendations" / "Получено N рекомендаций" — useless
+      // when we already render reasoning + cards. Hide it when cards are
+      // present; keep it only for text-only replies.
+      const recs = response.recommendations || [];
       const assistantMessage: ChatMessage = {
         id: response.assistantMessageId ?? `${Date.now()}-ai`,
         messageId: response.assistantMessageId,
         type: 'ai',
-        content: response.recommendation || "Here are some recommendations:",
+        content: recs.length > 0 ? '' : (response.recommendation || ''),
         timestamp: new Date(),
         // PCAI-139: aggregate explanation rendered above the cards.
         reasoning: response.reasoning,
-        recommendations: (response.recommendations || []).map((rec) => ({
+        recommendations: recs.map((rec) => ({
           ...rec,
           steamUrl: `https://store.steampowered.com/search/?term=${encodeURIComponent(rec.title)}`,
         })),

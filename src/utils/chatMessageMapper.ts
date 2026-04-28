@@ -56,6 +56,10 @@ export function fromChatMessageDto(dto: ChatMessageDto): ChatMessage {
   let reasoning: string | undefined;
   let status: ChatMessage['status'];
   let errorPayload: ChatMessage['error'];
+  // PCAI-151: when meta describes a cards/mixed reply with actual items,
+  // the dto.content is usually the server stub ("Received N recommendations").
+  // Drop it — cards + reasoning carry the real signal.
+  let content = dto.content ?? '';
 
   if (meta && meta.payload) {
     const payload = meta.payload as Record<string, unknown>;
@@ -64,6 +68,7 @@ export function fromChatMessageDto(dto: ChatMessageDto): ChatMessage {
       const items = (payload.items as CardItem[] | undefined) ?? [];
       if (Array.isArray(items) && items.length > 0) {
         recommendations = items.map(toGameRecommendation);
+        if (meta.type === 'cards') content = '';
       }
       const r = payload.reasoning;
       if (typeof r === 'string' && r.trim().length > 0) {
@@ -89,7 +94,7 @@ export function fromChatMessageDto(dto: ChatMessageDto): ChatMessage {
     id: dto.messageId,
     messageId: dto.messageId,
     type,
-    content: dto.content ?? '',
+    content,
     timestamp: new Date(dto.createdAt),
     recommendations,
     reasoning,

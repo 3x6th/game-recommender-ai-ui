@@ -223,8 +223,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // 3) Refresh sidebar entry only when requested AND we have a chatId.
       if (opts?.refreshList && opts.chatId) {
-        const lastWithContent = [...messages].reverse().find((m) => m.content?.trim().length);
-        const previewSource = lastWithContent?.content ?? '';
+        // PCAI-151: prefer USER message text as preview — it's the actual
+        // "topic" of the chat. AI replies are often a stub like
+        // "Received N recommendations" and read poorly in the sidebar.
+        const reversed = [...messages].reverse();
+        const lastUser = reversed.find((m) => m.type === 'user' && m.content?.trim().length);
+        const lastAny = reversed.find((m) => m.content?.trim().length);
+        const previewSource = lastUser?.content ?? lastAny?.content ?? '';
         const preview =
           previewSource.length > 80 ? `${previewSource.slice(0, 77)}…` : previewSource;
         const nowIso = new Date().toISOString();
