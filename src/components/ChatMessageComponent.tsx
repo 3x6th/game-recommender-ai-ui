@@ -1,42 +1,45 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React from 'react';
+import { motion } from 'framer-motion';
 import {
   User,
   Bot,
-  Sparkles,
-  ChevronDown,
-  ChevronUp,
   Loader2,
   AlertTriangle,
   RotateCcw,
 } from 'lucide-react';
-import { ChatMessage } from '../types';
+import { ChatMessage, ChatMessageItem } from '../types';
 import { GameRecommendationCard } from './GameRecommendationCard';
+import { ReasoningBlock } from './ReasoningBlock';
+import { TextBlock } from './TextBlock';
 
 interface ChatMessageComponentProps {
   message: ChatMessage;
-  /**
-   * Optional retry hook (PCAI-112). Shown only when message is an
-   * error meta with payload.retryable=true.
-   */
+  /** Вызывается, когда пользователь жмёт retry на error-сообщении. */
   onRetry?: (message: ChatMessage) => void;
 }
 
 /**
- * Length above which the reasoning block becomes collapsible.
- * Picked to roughly match 3 lines on desktop.
+ * Отрисовка одного сообщения чата.
+ *
+ * meta.type диктует форму:
+ *  - status                 → тонкий чип (без аватара/пузыря)
+ *  - error                  → красный блок + retry если retryable
+ *  - cards                  → блоки items[] (reasoning / text / game / unknown)
+ *  - reply                  → bubble с content
+ *  - tool_call/tool_result  → скрываем из ленты (служебные шаги агента,
+ *                             см. api-contract.md §4.6 / §4.7)
+ *  - unknown                → fallback на content
  */
-const REASONING_COLLAPSE_THRESHOLD = 280;
-
 export const ChatMessageComponent: React.FC<ChatMessageComponentProps> = ({ message, onRetry }) => {
-  const reasoning = message.type === 'ai' ? message.reasoning?.trim() : undefined;
-  const isLongReasoning = !!reasoning && reasoning.length > REASONING_COLLAPSE_THRESHOLD;
-  const [reasoningExpanded, setReasoningExpanded] = useState(false);
-
   const isStatus = message.metaType === 'status' && !!message.status;
   const isError = message.metaType === 'error' && !!message.error;
+  const isHiddenAgentStep =
+    message.metaType === 'tool_call' || message.metaType === 'tool_result';
 
-  // PCAI-112: status messages are rendered as a slim chip rather than a full bubble.
+  if (isHiddenAgentStep) {
+    return null;
+  }
+
   if (isStatus) {
     return (
       <motion.div
@@ -72,7 +75,6 @@ export const ChatMessageComponent: React.FC<ChatMessageComponentProps> = ({ mess
       )}
 
       <div className={`max-w-2xl ${message.type === 'user' ? 'order-first' : ''}`}>
-        {/* PCAI-112: error meta — distinct error card with optional retry. */}
         {isError ? (
           <div className="rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-3 backdrop-blur-md">
             <div className="mb-1.5 flex items-center gap-2">
@@ -96,70 +98,26 @@ export const ChatMessageComponent: React.FC<ChatMessageComponentProps> = ({ mess
             )}
           </div>
         ) : (
-          // PCAI-151: skip the empty content bubble for AI cards/reasoning
-          // replies — they used to show a stub like "Received N recommendations".
-          message.content?.trim() && (
-            <div
-              className={`rounded-2xl px-4 py-3 ${
-                message.type === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white/10 text-zinc-200 border border-white/15 backdrop-blur-md'
-              }`}
-            >
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-            </div>
-          )
-        )}
-
-        {/* PCAI-139: aggregate explanation from the agent ("why these games"). */}
-        {!isError && reasoning && (
-          <div className="mt-3 rounded-xl border border-purple-300/20 bg-gradient-to-br from-purple-500/10 to-blue-500/5 p-3 backdrop-blur-md">
-            <div className="mb-1.5 flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-purple-300" />
-              <span className="text-[11px] font-medium uppercase tracking-wide text-purple-200/80">
-                Why these games
-              </span>
-            </div>
-            <AnimatePresence initial={false}>
-              <motion.p
-                key={reasoningExpanded ? 'expanded' : 'collapsed'}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="text-xs leading-relaxed text-zinc-200 whitespace-pre-wrap"
+          <>
+            {message.content?.trim() && (
+              <div
+                className={`rounded-2xl px-4 py-3 ${
+                  message.type === 'user'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white/10 text-zinc-200 border border-white/15 backdrop-blur-md'
+                }`}
               >
-                {!isLongReasoning || reasoningExpanded
-                  ? reasoning
-                  : `${reasoning.slice(0, REASONING_COLLAPSE_THRESHOLD).trimEnd()}…`}
-              </motion.p>
-            </AnimatePresence>
-            {isLongReasoning && (
-              <button
-                type="button"
-                onClick={() => setReasoningExpanded((v) => !v)}
-                className="mt-2 inline-flex items-center gap-1 text-[11px] text-purple-200/80 hover:text-purple-100 transition-colors"
-              >
-                {reasoningExpanded ? (
-                  <>
-                    <ChevronUp className="h-3 w-3" /> Show less
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="h-3 w-3" /> Show more
-                  </>
-                )}
-              </button>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+              </div>
             )}
-          </div>
-        )}
-
-        {!isError && message.recommendations && message.recommendations.length > 0 && (
-          <div className="mt-4 space-y-3">
-            {message.recommendations.map((game, idx) => (
-              <GameRecommendationCard key={`${game.title}-${idx}`} game={game} />
-            ))}
-          </div>
+            {message.items && message.items.length > 0 && (
+              <div className="mt-3 space-y-3">
+                {message.items.map((item, idx) => (
+                  <ItemRenderer key={idx} item={item} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -170,4 +128,27 @@ export const ChatMessageComponent: React.FC<ChatMessageComponentProps> = ({ mess
       )}
     </motion.div>
   );
+};
+
+/**
+ * Switch по `kind` — единственное место, где FE решает как отрисовать
+ * элемент items[]. Незнакомые kind'ы отфильтровываются ещё в chatMessageMapper,
+ * сюда попадают только известные → честное narrowing.
+ */
+const ItemRenderer: React.FC<{ item: ChatMessageItem }> = ({ item }) => {
+  switch (item.kind) {
+    case 'reasoning':
+      return <ReasoningBlock text={item.text} />;
+    case 'text':
+      return <TextBlock text={item.text} />;
+    case 'game':
+      return <GameRecommendationCard game={item.game} />;
+    default: {
+      // Exhaustiveness check: если в union добавится новый kind без обработки —
+      // TS подсветит ошибку именно здесь.
+      const _exhaustive: never = item;
+      void _exhaustive;
+      return null;
+    }
+  }
 };

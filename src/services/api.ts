@@ -1,5 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { ChatMessageDto, ChatPageResponse, GameRecommendation } from '../types';
+import { ChatMessageDto, ChatPageResponse } from '../types';
 import { tokenManager } from '../utils/tokenManager';
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
@@ -241,21 +241,20 @@ export interface GamesProceedRequest {
   clientRequestId?: string;
 }
 
-export interface GamesProceedResponse {
-  recommendation: string;
-  /** Aggregate explanation: why these specific games were chosen (PCAI-133). */
-  reasoning?: string;
-  success: boolean;
-  recommendations: GameRecommendation[];
-  /** Chat the message belongs to. Created if absent in request. */
+/**
+ * Канонический ответ /api/v1/games/proceed (PCAI-153).
+ *
+ * Тот же формат, что и `GET /chats/{id}/messages`: один `ChatMessageDto`-конверт
+ * для USER и ASSISTANT, один маппер на FE. `messages[]` — ассистентские
+ * сообщения текущего хода (обычно одно). USER-сообщение не дублируется в ответе.
+ */
+export interface ProceedResponse {
   chatId?: string;
-  /** Assistant message id, useful to anchor follow-up renders (e.g. cards from history). */
-  assistantMessageId?: string;
-  errorMessage?: string;
+  messages: ChatMessageDto[];
 }
 
 export const gamesApi = {
-  async proceed(request: GamesProceedRequest): Promise<GamesProceedResponse> {
+  async proceed(request: GamesProceedRequest): Promise<ProceedResponse> {
     try {
       // PCAI-145: clientRequestId is sent ONLY in the body. We previously also
       // sent it as X-Client-Request-Id, but that turns the request into a
@@ -263,7 +262,7 @@ export const gamesApi = {
       // include this header — the browser blocked the POST entirely.
       // Once the backend ships PCAI-146 (allow header in CORS) we can put it
       // back into the header.
-      const response = await api.post<GamesProceedResponse>('/games/proceed', request, {
+      const response = await api.post<ProceedResponse>('/games/proceed', request, {
         // AI calls can take >10s; allow enough time for a full response.
         timeout: 60000,
       });

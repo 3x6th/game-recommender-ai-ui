@@ -23,6 +23,7 @@ import { API_BASE_URL, gamesApi } from "./services/api";
 import { TypewriterPrompt } from "./components/TypewriterPrompt";
 import { generateUUID } from "./utils/uuid";
 import { useChatContext } from "./context/ChatContext";
+import { fromChatMessageDto } from "./utils/chatMessageMapper";
 
 export default function PlayCureApp() {
   const { authData, isLoading: authLoading, error: authError, logout } = useAuth();
@@ -169,29 +170,15 @@ export default function PlayCureApp() {
         ...(steamIdToSend ? { steamId: steamIdToSend } : {}),
       });
 
-      // PCAI-151: response.recommendation is a server-side stub like
-      // "Received N recommendations" / "Получено N рекомендаций" — useless
-      // when we already render reasoning + cards. Hide it when cards are
-      // present; keep it only for text-only replies.
-      const recs = response.recommendations || [];
-      const assistantMessage: ChatMessage = {
-        id: response.assistantMessageId ?? `${Date.now()}-ai`,
-        messageId: response.assistantMessageId,
-        type: 'ai',
-        content: recs.length > 0 ? '' : (response.recommendation || ''),
-        timestamp: new Date(),
-        // PCAI-139: aggregate explanation rendered above the cards.
-        reasoning: response.reasoning,
-        recommendations: recs.map((rec) => ({
-          ...rec,
-          steamUrl: `https://store.steampowered.com/search/?term=${encodeURIComponent(rec.title)}`,
-        })),
-      };
+      // PCAI-153: /proceed теперь возвращает тот же ChatMessageDto-конверт, что и
+      // история. Маппим через тот же fromChatMessageDto — никакой ручной сборки
+      // ChatMessage из legacy-полей. Если бек прислал несколько сообщений (status +
+      // cards в будущем при streaming) — все попадут в ленту.
+      const aiMessages: ChatMessage[] = (response.messages ?? []).map(fromChatMessageDto);
 
       // PCAI-143: render the assistant reply unconditionally. If backend gave
       // us a chatId (most cases), also adopt it and refresh the sidebar entry.
-      // If it didn't — still show the message in the current view.
-      appendMessages([assistantMessage], {
+      appendMessages(aiMessages, {
         chatId: response.chatId ?? null,
         refreshList: true,
       });

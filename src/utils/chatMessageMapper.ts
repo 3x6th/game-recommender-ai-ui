@@ -1,14 +1,22 @@
-import { ChatMessage, ChatMessageDto, GameRecommendation, MetaEnvelope } from '../types';
+import {
+  ChatMessage,
+  ChatMessageDto,
+  ChatMessageItem,
+  GameRecommendation,
+  MetaEnvelope,
+} from '../types';
 
 /**
- * Build a Steam search URL for a card title.
- * Used as a fallback when meta payload doesn't carry a steamUrl.
+ * Steam-fallback URL по названию игры. Используется, пока в контракте нет
+ * Steam-обогащения карточки (см. api-contract.md §5.2 — gameId/storeUrl/imageUrl
+ * НЕ входят в DTO). Когда BE начнёт отдавать `storeUrl` — этот fallback станет
+ * мёртвым и будет удалён.
  */
 function steamSearchUrl(title: string): string {
   return `https://store.steampowered.com/search/?term=${encodeURIComponent(title)}`;
 }
 
-interface CardItem {
+interface RawCard {
   title?: string;
   genre?: string;
   description?: string;
@@ -22,58 +30,83 @@ interface CardItem {
   steam_url?: string;
 }
 
-function toGameRecommendation(item: CardItem): GameRecommendation {
-  const title = item.title ?? '';
+function toGameRecommendation(raw: RawCard): GameRecommendation {
+  const title = raw.title ?? '';
   return {
     title,
-    genre: item.genre ?? '',
-    description: item.description ?? '',
-    whyRecommended: item.whyRecommended ?? item.why_recommended ?? '',
-    platforms: item.platforms ?? [],
-    rating: typeof item.rating === 'number' ? item.rating : 0,
-    releaseYear: item.releaseYear ?? item.release_year ?? '',
-    steamUrl: item.steamUrl ?? item.steam_url ?? steamSearchUrl(title),
+    genre: raw.genre ?? '',
+    description: raw.description ?? '',
+    whyRecommended: raw.whyRecommended ?? raw.why_recommended ?? '',
+    platforms: raw.platforms ?? [],
+    rating: typeof raw.rating === 'number' ? raw.rating : 0,
+    releaseYear: raw.releaseYear ?? raw.release_year ?? '',
+    steamUrl: raw.steamUrl ?? raw.steam_url ?? steamSearchUrl(title),
   };
 }
 
 /**
- * Convert backend ChatMessageDto (history read API) into the FE ChatMessage shape
- * used by ChatMessageComponent.
+ * Парсит payload.items[] полиморфно по полю `kind` (контракт §5).
+ * Незнакомые kind пропускаются — это сознательный forward-compat:
+ * BE может добавить новые kind (profile_review, clarifying_question и т.п.),
+ * старый клиент не должен падать.
+ */
+function parseItems(rawItems: unknown): ChatMessageItem[] | undefined {
+  if (!Array.isArray(rawItems)) return undefined;
+  const out: ChatMessageItem[] = [];
+  for (const raw of rawItems) {
+    if (!raw || typeof raw !== 'object') continue;
+    const item = raw as Record<string, unknown>;
+    const kind = typeof item.kind === 'string' ? item.kind : undefined;
+    if (!kind) continue;
+
+    if (kind === 'reasoning' && typeof item.text === 'string') {
+      out.push({ kind: 'reasoning', text: item.text });
+      continue;
+    }
+    if (kind === 'text' && typeof item.text === 'string') {
+      out.push({ kind: 'text', text: item.text });
+      continue;
+    }
+    if (kind === 'game') {
+      out.push({ kind: 'game', game: toGameRecommendation(item as RawCard) });
+      continue;
+    }
+    // Незнакомый kind — тихо пропускаем (forward-compat: BE может ввести
+    // profile_review / clarifying_question / quick_replies, старый клиент
+    // не падает).
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+/**
+ * Конвертирует `ChatMessageDto` (envelope из /proceed и /chats/{id}/messages)
+ * в render-модель FE. Один путь и для свежих ответов /proceed, и для истории.
  *
- * Full meta.type support (PCAI-112):
- *   - reply           -> plain text content
- *   - cards / mixed   -> payload.items rendered as recommendation cards;
- *                        payload.reasoning rendered as the "why these games" block
- *   - status          -> status chip above the bubble (payload.message / .state / .code)
- *   - error           -> error block; payload.retryable -> retry button
- *   - unknown / null  -> fallback to plain content (forward compatibility)
+ * meta.type:
+ *  - reply       → bubble с content
+ *  - cards       → items[] полиморфно (reasoning / text / game / unknown)
+ *  - status      → тонкий чип
+ *  - error       → красный блок с retry если retryable
+ *  - tool_call   → деталь LangChain-цикла, по умолчанию НЕ показываем (контракт §4.6)
+ *  - tool_result → ответ инструмента, НЕ показываем (контракт §4.7)
+ *  - unknown     → fallback на content
  */
 export function fromChatMessageDto(dto: ChatMessageDto): ChatMessage {
   const meta = dto.meta as MetaEnvelope | null | undefined;
   const type: ChatMessage['type'] = dto.role === 'USER' ? 'user' : 'ai';
 
-  let recommendations: GameRecommendation[] | undefined;
-  let reasoning: string | undefined;
+  let items: ChatMessageItem[] | undefined;
   let status: ChatMessage['status'];
   let errorPayload: ChatMessage['error'];
-  // PCAI-151: when meta describes a cards/mixed reply with actual items,
-  // the dto.content is usually the server stub ("Received N recommendations").
-  // Drop it — cards + reasoning carry the real signal.
   let content = dto.content ?? '';
 
-  if (meta && meta.payload) {
+  if (meta?.payload) {
     const payload = meta.payload as Record<string, unknown>;
 
-    if (meta.type === 'cards' || meta.type === 'mixed') {
-      const items = (payload.items as CardItem[] | undefined) ?? [];
-      if (Array.isArray(items) && items.length > 0) {
-        recommendations = items.map(toGameRecommendation);
-        if (meta.type === 'cards') content = '';
-      }
-      const r = payload.reasoning;
-      if (typeof r === 'string' && r.trim().length > 0) {
-        reasoning = r;
-      }
+    if (meta.type === 'cards') {
+      items = parseItems(payload.items);
+      // Для cards content по контракту пуст — всё содержимое в items[].
+      content = '';
     } else if (meta.type === 'status') {
       status = {
         code: typeof payload.code === 'string' ? payload.code : undefined,
@@ -87,7 +120,7 @@ export function fromChatMessageDto(dto: ChatMessageDto): ChatMessage {
         retryable: payload.retryable === true,
       };
     }
-    // reply / unknown -> nothing extra; content is rendered by default.
+    // reply / tool_call / tool_result / unknown → ничего лишнего; content рендерится сам.
   }
 
   return {
@@ -96,9 +129,8 @@ export function fromChatMessageDto(dto: ChatMessageDto): ChatMessage {
     type,
     content,
     timestamp: new Date(dto.createdAt),
-    recommendations,
-    reasoning,
     metaType: meta?.type,
+    items,
     status,
     error: errorPayload,
   };

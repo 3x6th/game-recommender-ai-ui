@@ -9,41 +9,7 @@ export interface GameRecommendation {
   steamUrl?: string;
 }
 
-export interface ChatMessage {
-  id: string;
-  type: 'user' | 'ai';
-  content: string;
-  timestamp: Date;
-  recommendations?: GameRecommendation[];
-  /** Aggregate explanation from the agent — why these games (PCAI-133/PCAI-139). */
-  reasoning?: string;
-  /** Backend-side message id (assistantMessageId from /proceed or messageId from history). */
-  messageId?: string;
-  /**
-   * Meta envelope kind, normalized for the renderer (PCAI-112).
-   * Set only when backend supplies meta (history reads). Live /proceed
-   * responses are mapped to 'reply' / 'cards' / 'mixed' implicitly.
-   */
-  metaType?: MetaEnvelope['type'];
-  /**
-   * Status payload (PCAI-112): when metaType === 'status' the renderer
-   * shows a state chip ("thinking", "searching", ...) above the bubble.
-   */
-  status?: { code?: string; message?: string; state?: string };
-  /**
-   * Error payload (PCAI-112): when metaType === 'error' the renderer shows
-   * an error card; if retryable=true a retry button is shown.
-   */
-  error?: { code?: string; message?: string; retryable?: boolean };
-}
-
-export interface BurnoutLevel {
-  level: 'low' | 'medium' | 'high' | 'critical';
-  description: string;
-  color: string;
-}
-
-// === Chat history (PCAI-115 / PCAI-140) ===
+// === Chat history (PCAI-115 / PCAI-140) + полиморфные items (PCAI-153) ===
 
 export type MessageRole = 'USER' | 'ASSISTANT' | 'SYSTEM' | 'TOOL';
 export type ChatStatus = 'ACTIVE' | 'ARCHIVED';
@@ -64,13 +30,13 @@ export interface ChatPageResponse {
 }
 
 /**
- * Canonical meta envelope for chat messages (PCAI-105/PCAI-111).
- * Backend returns this on history reads. /proceed currently uses the legacy
- * GameRecommendationResponse shape — meta is built only by the read API.
+ * Канонический meta envelope (PCAI-105/PCAI-111/PCAI-141/PCAI-153).
+ * `mixed` снят, остаются reply / cards / status / error / tool_call / tool_result.
+ * Незнакомые `type` — игнорируем (forward-compat для следующих релизов).
  */
 export interface MetaEnvelope {
   schemaVersion: number;
-  type: 'reply' | 'cards' | 'mixed' | 'status' | 'error' | string;
+  type: 'reply' | 'cards' | 'status' | 'error' | 'tool_call' | 'tool_result' | string;
   payload?: Record<string, unknown>;
 }
 
@@ -83,4 +49,45 @@ export interface ChatMessageDto {
   createdAt: string;
 }
 
+/**
+ * Discriminated union для элементов внутри meta.payload.items[] (cards-сообщения).
+ *
+ * Незнакомые `kind` отфильтровываются ещё на уровне маппера — в render-модель
+ * попадают только известные. Это даёт честное narrowing в switch. Когда BE
+ * введёт новый kind (profile_review / clarifying_question / quick_replies),
+ * добавляем здесь arm + ветку в маппере + ветку в ItemRenderer — всё в одном
+ * типе-проверяемом месте.
+ */
+export type ChatMessageItem =
+  | { kind: 'reasoning'; text: string }
+  | { kind: 'text'; text: string }
+  | { kind: 'game'; game: GameRecommendation };
 
+/**
+ * Render-модель сообщения для FE. Один тип для USER и ASSISTANT —
+ * мапится из `ChatMessageDto` через `fromChatMessageDto` и для свежего ответа
+ * /proceed, и для истории.
+ */
+export interface ChatMessage {
+  id: string;
+  /** Backend-side message id (если известен). */
+  messageId?: string;
+  type: 'user' | 'ai';
+  /** Bubble-текст (для reply / error), для cards-сообщений пустой. */
+  content: string;
+  timestamp: Date;
+  /** Тип meta-конверта, по которому рендерер выбирает форму. */
+  metaType?: MetaEnvelope['type'];
+  /** Полиморфные блоки (cards-сообщения). Рендерим switch по kind. */
+  items?: ChatMessageItem[];
+  /** Status-payload (PCAI-112): тонкий чип «thinking»/«searching». */
+  status?: { code?: string; message?: string; state?: string };
+  /** Error-payload (PCAI-112): красный блок + retry если retryable. */
+  error?: { code?: string; message?: string; retryable?: boolean };
+}
+
+export interface BurnoutLevel {
+  level: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  color: string;
+}
