@@ -163,8 +163,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(true);
         setError(null);
 
+        // PCAI-142: if we just came back from /auth/steam, the old GUEST access
+        // token in localStorage is usually still valid by exp — using it would
+        // skip /auth/refresh entirely, leaving the UI in guest state even though
+        // backend has minted a USER refresh cookie. Force a refresh in that case.
+        let pendingSteamLogin = false;
+        try {
+          pendingSteamLogin = sessionStorage.getItem('pendingSteamLogin') === '1';
+          if (pendingSteamLogin) sessionStorage.removeItem('pendingSteamLogin');
+        } catch {
+          // sessionStorage may be unavailable in some embedded contexts — ignore.
+        }
+
+        if (pendingSteamLogin) {
+          const refreshed = await refreshToken();
+          if (refreshed) return;
+          // Refresh failed: fall through to the standard restore path below.
+        }
+
         const storedSession = getValidStoredSession();
         if (storedSession) {
+          if (!storedSession.steamId) {
+            try {
+              const response = await authApi.refresh();
+              login(authSessionFromAccessToken(response));
+              return;
+            } catch (refreshErr) {
+              console.warn('Token refresh before guest restore failed:', refreshErr);
+            }
+          }
+
           login(storedSession);
           return;
         }
