@@ -162,7 +162,7 @@ export interface PreAuthResponse {
   accessExpiresIn: number;
   role: string;
   sessionId: string;
-  steamId?: number;
+  steamId?: string | number;
 }
 
 export interface AccessTokenResponse {
@@ -175,7 +175,30 @@ export interface AuthSession {
   accessExpiresIn: number;
   role: string;
   sessionId: string;
-  steamId?: number;
+  steamId?: string;
+}
+
+function normalizeSteamId(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.trunc(value).toString();
+  }
+
+  return undefined;
+}
+
+export function getSteamIdFromAccessToken(
+  accessToken: string,
+  decodedPayload?: { steamId?: unknown } | null,
+): string | undefined {
+  return (
+    normalizeSteamId(tokenManager.getRawStringClaim(accessToken, 'steamId')) ??
+    normalizeSteamId(decodedPayload?.steamId)
+  );
 }
 
 export function authSessionFromPreAuth(resp: PreAuthResponse): AuthSession {
@@ -184,24 +207,22 @@ export function authSessionFromPreAuth(resp: PreAuthResponse): AuthSession {
     accessExpiresIn: resp.accessExpiresIn,
     role: resp.role,
     sessionId: resp.sessionId,
-    steamId: resp.steamId,
+    steamId: getSteamIdFromAccessToken(resp.accessToken) ?? normalizeSteamId(resp.steamId),
   };
 }
 
 export function authSessionFromAccessToken(resp: AccessTokenResponse): AuthSession {
-  const payload = tokenManager.decodeToken(resp.accessToken);
+  const payload = tokenManager.decodeToken<{ role?: string; sub?: string; steamId?: unknown }>(resp.accessToken);
   const sessionId =
     (payload && typeof payload.sub === 'string' ? payload.sub : null) ?? tokenManager.getSessionId() ?? '';
   const role = payload && typeof payload.role === 'string' ? payload.role : 'GUEST';
-  const steamIdRaw = payload ? (payload as any).steamId : undefined;
-  const steamId = steamIdRaw == null ? undefined : Number(steamIdRaw);
 
   return {
     accessToken: resp.accessToken,
     accessExpiresIn: resp.accessExpiresIn,
     role,
     sessionId,
-    steamId: Number.isFinite(steamId) ? steamId : undefined,
+    steamId: getSteamIdFromAccessToken(resp.accessToken, payload),
   };
 }
 
@@ -310,4 +331,3 @@ export const chatsApi = {
 };
 
 export default api;
-
