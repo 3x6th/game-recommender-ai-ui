@@ -308,7 +308,7 @@ export default function PlayCureApp() {
               </div>
               <span className="tracking-wide text-lg font-semibold uppercase text-zinc-300">PLAYCURE</span>
               {authData?.steamId && (
-                <span className="text-xs text-zinc-500 ml-2 truncate max-w-[140px] sm:max-w-none">
+                <span className="ml-2 hidden max-w-[140px] truncate text-xs text-zinc-500 min-[426px]:inline-block sm:max-w-none">
                   Steam ID: {authData.steamId}
                 </span>
               )}

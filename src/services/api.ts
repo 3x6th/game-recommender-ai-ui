@@ -282,7 +282,7 @@ export interface ListChatsParams {
 }
 
 export interface GetChatMessagesParams {
-  /** ISO-8601 timestamp. Required by backend. For first page send `new Date().toISOString()`. */
+  /** ISO-8601 instant timestamp. Required by backend. */
   before: string;
   limit?: number;
 }
@@ -310,5 +310,4 @@ export const chatsApi = {
 };
 
 export default api;
-
 

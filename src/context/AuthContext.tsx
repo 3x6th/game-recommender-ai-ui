@@ -183,6 +183,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const storedSession = getValidStoredSession();
         if (storedSession) {
+          if (!storedSession.steamId) {
+            try {
+              const response = await authApi.refresh();
+              login(authSessionFromAccessToken(response));
+              return;
+            } catch (refreshErr) {
+              console.warn('Token refresh before guest restore failed:', refreshErr);
+            }
+          }
+
           login(storedSession);
           return;
         }

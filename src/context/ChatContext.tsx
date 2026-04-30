@@ -13,16 +13,11 @@ import { fromChatMessageDto } from '../utils/chatMessageMapper';
 import { useAuthContext } from './AuthContext';
 
 /**
- * Format a Date as ISO_LOCAL_DATE_TIME (no trailing Z / no offset) — the
- * backend currently binds `before` to LocalDateTime which can't parse the
- * standard ISO string with 'Z'. See PCAI-149 (FE workaround) / PCAI-150
- * (proper BE fix to OffsetDateTime). Once BE is fixed we can drop this
- * and use date.toISOString() directly.
+ * Backend accepts an ISO-8601 instant cursor. Keeping the trailing Z is
+ * important: slicing it off made the backend reinterpret UTC as local time.
  */
-function toLocalDateTimeNoTz(date: Date): string {
-  // toISOString() always produces a UTC string ending with 'Z' — slicing it
-  // off keeps the same instant value but in a format LocalDateTime accepts.
-  return date.toISOString().slice(0, -1);
+function toCursorTimestamp(date: Date): string {
+  return date.toISOString();
 }
 
 const CHAT_LIST_PAGE = 30;
@@ -90,7 +85,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Track in-flight session to ignore stale responses on quick switches.
   const currentLoadTokenRef = useRef(0);
 
-  const sessionKey = authData?.sessionId ?? null;
+  const ownerKey = authData?.steamId
+    ? `user:${authData.steamId}`
+    : authData?.sessionId
+      ? `guest:${authData.sessionId}`
+      : null;
 
   const refreshChats = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -127,8 +126,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [chatsOffset, isAuthenticated, isLoadingChats, totalChats]);
 
-  // Initial load on auth establishment, AND reload on session change
-  // (covers Guest -> Steam login transition — PCAI-114).
+  // Initial load on auth establishment, AND reload on owner change
+  // (covers Guest -> Steam login even when sessionId stays the same).
   useEffect(() => {
     if (!isAuthenticated) {
       setChats([]);
@@ -140,7 +139,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     void refreshChats();
-  }, [isAuthenticated, sessionKey, refreshChats]);
+  }, [isAuthenticated, ownerKey, refreshChats]);
 
   const selectChat = useCallback((chatId: string) => {
     setCurrentChatId(chatId);
@@ -151,7 +150,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const token = ++currentLoadTokenRef.current;
     setIsLoadingMessages(true);
 
-    const before = toLocalDateTimeNoTz(new Date());
+    const before = toCursorTimestamp(new Date());
     chatsApi
       .getChatMessages(chatId, { before, limit: HISTORY_PAGE })
       .then((dtos) => {
@@ -181,7 +180,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoadingMoreMessages(true);
     try {
       // Earliest currently-loaded message is at index 0 (ASC order).
-      const before = toLocalDateTimeNoTz(currentMessages[0].timestamp);
+      const before = toCursorTimestamp(currentMessages[0].timestamp);
       const dtos = await chatsApi.getChatMessages(currentChatId, {
         before,
         limit: HISTORY_PAGE,
