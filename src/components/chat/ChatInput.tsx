@@ -5,12 +5,13 @@ import { Send } from "lucide-react";
 interface ChatInputProps {
     value: string;
     placeholder: string;
-    disabled: boolean;
+    isLoading: boolean;
+    canSubmit: boolean;
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onSubmit: (e: React.FormEvent) => void;
 }
 
-export function ChatInput({ value, placeholder, disabled, onChange, onSubmit }: ChatInputProps) {
+export function ChatInput({ value, placeholder, isLoading, canSubmit, onChange, onSubmit }: ChatInputProps) {
     return (
         <form onSubmit={onSubmit} className="relative z-10 w-full">
             <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-white/5 backdrop-blur-2xl">
@@ -34,11 +35,11 @@ export function ChatInput({ value, placeholder, disabled, onChange, onSubmit }: 
                         placeholder={placeholder}
                         className="w-full bg-transparent text-base outline-none placeholder:text-zinc-400"
                         aria-label="Game recommendation input"
-                        disabled={disabled}
+                        disabled={isLoading}
                     />
                     <button
                         type="submit"
-                        disabled={disabled || !value.trim()}
+                        disabled={isLoading || !canSubmit}
                         className="group relative inline-flex h-10 shrink-0 items-center justify-center gap-2 overflow-hidden rounded-xl border border-white/20 px-4 text-sm font-medium text-white backdrop-blur-md transition hover:border-white/40 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <span className="relative z-10">Send</span>

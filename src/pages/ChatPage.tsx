@@ -170,12 +170,14 @@ export default function ChatPage() {
     if (authLoading) {
         return (
         <AppLayout>
-                <div className="relative z-10 text-center">
-                    <div className="flex items-center gap-3 mb-4">
-                        <Gamepad2 className="h-8 w-8 text-blue-400 animate-pulse" />
-                        <Heart className="h-6 w-6 text-red-400 animate-pulse" />
+                <div className="flex items-center justify-center h-full w-full">
+                    <div className="relative z-10 text-center">
+                        <div className="flex items-center gap-3 mb-4">
+                            <Gamepad2 className="h-8 w-8 text-blue-400 animate-pulse" />
+                            <Heart className="h-6 w-6 text-red-400 animate-pulse" />
+                        </div>
+                        <p className="text-zinc-400">Initializing PlayCure...</p>
                     </div>
-                    <p className="text-zinc-400">Initializing PlayCure...</p>
                 </div>
         </AppLayout>
         );
@@ -185,16 +187,18 @@ export default function ChatPage() {
     if (authError) {
         return (
             <AppLayout>
-                <div className="relative z-10 text-center max-w-md">
-                    <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-                    <h2 className="text-xl font-semibold mb-2">Connection Error</h2>
-                    <p className="text-zinc-400 mb-4">{authError}</p>
-                    <button
-                        onClick={() => window.location.reload()}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                    >
-                        Retry
-                    </button>
+                <div className="flex items-center justify-center h-full w-full">
+                    <div className="relative z-10 text-center max-w-md">
+                        <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+                        <h2 className="text-xl font-semibold mb-2">Connection Error</h2>
+                        <p className="text-zinc-400 mb-4">{authError}</p>
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                        >
+                            Retry
+                        </button>
+                    </div>
                 </div>
             </AppLayout>
 
@@ -299,7 +303,8 @@ export default function ChatPage() {
                         <ChatInput
                             value={query}
                             placeholder={currentChatId ? "Continue the conversation..." : "Tell me about your gaming preferences..."}
-                            disabled={isLoading}
+                            isLoading={isLoading}
+                            canSubmit={query.trim().length > 0 || active.length > 0}
                             onChange={(e) => setQuery(e.target.value)}
                             onSubmit={onSubmit}
                         />

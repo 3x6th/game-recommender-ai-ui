@@ -205,8 +205,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Prefer refresh() to restore session from cookie (works after Steam redirect too).
         const refreshed = await refreshToken();
         if (!refreshed) {
+          try {
           const response = await authApi.preAuthorize();
           login(authSessionFromPreAuth(response));
+          } catch (preAuthErr) {
+            console.error("Pre-authorization failed during init:", preAuthErr);
+            setError("Unable to connect to the server. Please try again");
+            clearAuth();
+          }
         }
       } catch (err) {
         console.error('Auth initialization failed:', err);
