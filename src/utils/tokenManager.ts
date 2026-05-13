@@ -137,13 +137,52 @@ class TokenManager {
    */
   decodeToken<T = any>(token: string): T | null {
     try {
-      const payload = token.split('.')[1];
-      const decoded = atob(base64UrlToBase64(payload));
+      const decoded = this.decodeTokenPayload(token);
+      if (!decoded) return null;
       return JSON.parse(decoded) as T;
     } catch (error) {
       console.error('Failed to decode token:', error);
       return null;
     }
+  }
+
+  /**
+   * Decode JWT payload text (without verification).
+   */
+  decodeTokenPayload(token: string): string | null {
+    try {
+      const payload = token.split('.')[1];
+      if (!payload) return null;
+      return atob(base64UrlToBase64(payload));
+    } catch (error) {
+      console.error('Failed to decode token payload:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Read a top-level JWT claim as text before JSON.parse can round large numbers.
+   */
+  getRawStringClaim(token: string, claimName: string): string | undefined {
+    const decoded = this.decodeTokenPayload(token);
+    if (!decoded) return undefined;
+
+    const escapedClaimName = claimName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const claimPattern = new RegExp(
+      `"${escapedClaimName}"\\s*:\\s*(?:"((?:\\\\.|[^"\\\\])*)"|(-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?))`
+    );
+    const match = decoded.match(claimPattern);
+    if (!match) return undefined;
+
+    if (match[1] != null) {
+      try {
+        return JSON.parse(`"${match[1]}"`) as string;
+      } catch {
+        return match[1];
+      }
+    }
+
+    return match[2];
   }
 
   /**

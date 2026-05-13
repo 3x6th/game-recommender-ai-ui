@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { AuthSession, authApi, authSessionFromAccessToken, authSessionFromPreAuth } from '../services/api';
+import {
+  AuthSession,
+  authApi,
+  authSessionFromAccessToken,
+  authSessionFromPreAuth,
+  getSteamIdFromAccessToken,
+} from '../services/api';
 import { tokenManager } from '../utils/tokenManager';
 
 interface AuthContextType {
@@ -31,7 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       exp?: number;
       sub?: string;
       role?: string;
-      steamId?: number | string;
+      steamId?: unknown;
     }>(accessToken);
 
     if (!payload || typeof payload.exp !== 'number') {
@@ -55,14 +61,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const role = typeof payload.role === 'string' ? payload.role : 'GUEST';
-    const steamIdValue = payload.steamId == null ? undefined : Number(payload.steamId);
 
     return {
       accessToken,
       accessExpiresIn,
       role,
       sessionId,
-      steamId: Number.isFinite(steamIdValue) ? steamIdValue : undefined,
+      steamId: getSteamIdFromAccessToken(accessToken, payload),
     };
   }, []);
 
@@ -200,8 +205,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Prefer refresh() to restore session from cookie (works after Steam redirect too).
         const refreshed = await refreshToken();
         if (!refreshed) {
+          try {
           const response = await authApi.preAuthorize();
           login(authSessionFromPreAuth(response));
+          } catch (preAuthErr) {
+            console.error("Pre-authorization failed during init:", preAuthErr);
+            setError("Unable to connect to the server. Please try again");
+            clearAuth();
+          }
         }
       } catch (err) {
         console.error('Auth initialization failed:', err);
