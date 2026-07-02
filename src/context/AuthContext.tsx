@@ -1,15 +1,18 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import {
   AuthSession,
+  UserProfile,
   authApi,
   authSessionFromAccessToken,
   authSessionFromPreAuth,
   getSteamIdFromAccessToken,
+  usersApi,
 } from '../services/api';
 import { tokenManager } from '../utils/tokenManager';
 
 interface AuthContextType {
   authData: AuthSession | null;
+  userProfile: UserProfile | null;
   isLoading: boolean;
   error: string | null;
   isAuthenticated: boolean;
@@ -22,10 +25,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [authData, setAuthData] = useState<AuthSession | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshTokenRef = useRef<() => Promise<boolean>>(async () => false);
+  const activeSteamIdRef = useRef<string | undefined>(undefined);
+  const profileRequestIdRef = useRef(0);
 
   const getValidStoredSession = useCallback((): AuthSession | null => {
     const accessToken = tokenManager.getAccessToken();
@@ -80,8 +86,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearAuth = useCallback(() => {
     clearRefreshTimer();
+    activeSteamIdRef.current = undefined;
+    profileRequestIdRef.current += 1;
     tokenManager.clearTokens();
     setAuthData(null);
+    setUserProfile(null);
   }, [clearRefreshTimer]);
 
   const scheduleTokenRefresh = useCallback((expiresIn: number) => {
@@ -96,6 +105,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [clearRefreshTimer]);
 
   const login = useCallback((session: AuthSession) => {
+    const accountChanged = activeSteamIdRef.current !== session.steamId;
+    activeSteamIdRef.current = session.steamId;
+    if (accountChanged) {
+      profileRequestIdRef.current += 1;
+      setUserProfile(null);
+    }
     setAuthData(session);
     setError(null);
 
@@ -112,6 +127,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
   }, [scheduleTokenRefresh]);
+
+  useEffect(() => {
+    const steamId = authData?.steamId;
+    if (!steamId) {
+      setUserProfile(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const requestId = ++profileRequestIdRef.current;
+
+    void usersApi
+      .getMe(controller.signal)
+      .then((profile) => {
+        if (
+          requestId === profileRequestIdRef.current &&
+          activeSteamIdRef.current === steamId &&
+          profile.steamId === steamId
+        ) {
+          setUserProfile(profile);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!controller.signal.aborted) {
+          console.error('Failed to load user profile:', err);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [authData?.steamId]);
 
   const logout = useCallback(() => {
     setError(null);
@@ -232,6 +279,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const value: AuthContextType = {
     authData,
+    userProfile:
+      userProfile?.steamId === authData?.steamId ? userProfile : null,
     isLoading,
     error,
     isAuthenticated: !!authData?.accessToken,

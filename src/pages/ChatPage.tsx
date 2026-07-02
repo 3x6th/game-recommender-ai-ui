@@ -20,7 +20,7 @@ import { MessagesContainer } from "../components/chat/MessagesContainer"
 import { ChatInput } from "../components/chat/ChatInput"
 
 export default function ChatPage() {
-    const { authData, isLoading: authLoading, error: authError, logout } = useAuth();
+    const { authData, userProfile, isLoading: authLoading, error: authError, logout } = useAuth();
     const {
         currentChatId,
         currentMessages,
@@ -262,6 +262,7 @@ export default function ChatPage() {
 
                         <Header
                             authData={authData}
+                            userProfile={userProfile}
                             onLogout={logout}
                             sidebarOpen={sidebarOpen}
                             onToggleSidebar={() => setSidebarOpen(true)}
@@ -280,6 +281,8 @@ export default function ChatPage() {
                                 error={messagesError}
                                 tagsCollapsed={tagsCollapsed}
                                 currentChatId={currentChatId}
+                                userAvatarUrl={userProfile?.avatarUrl ?? null}
+                                userSteamId={authData?.steamId}
                                 onRetry={currentChatId ? () => selectChat(currentChatId) : undefined}
                                 onSelectChat={selectChat}
                                 onScroll={handleHistoryScroll}
@@ -316,5 +319,3 @@ export default function ChatPage() {
         </>
     );
 }
-
-

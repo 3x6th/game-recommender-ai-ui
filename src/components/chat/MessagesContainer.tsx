@@ -14,6 +14,8 @@ interface MessagesContainerProps {
     error: string | null;
     tagsCollapsed: boolean;
     currentChatId: string | null;
+    userAvatarUrl: string | null;
+    userSteamId?: string;
     onRetry: (() => void) | undefined;
     onSelectChat: (chatId: string) => void;
     onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
@@ -29,6 +31,8 @@ export function MessagesContainer({
                                       error,
                                       tagsCollapsed,
                                       currentChatId,
+                                      userAvatarUrl,
+                                      userSteamId,
                                       onRetry,
                                       onScroll,
                                   }: MessagesContainerProps) {
@@ -106,6 +110,8 @@ export function MessagesContainer({
                 <ChatMessageComponent
                     key={message.id}
                     message={message}
+                    userAvatarUrl={userAvatarUrl}
+                    userSteamId={userSteamId}
                     onRetry={onRetry}
                 />
             ))}
