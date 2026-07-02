@@ -178,6 +178,12 @@ export interface AuthSession {
   steamId?: string;
 }
 
+export interface UserProfile {
+  steamId: string;
+  avatarUrl: string | null;
+  profileUrl: string | null;
+}
+
 function normalizeSteamId(value: unknown): string | undefined {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -246,6 +252,13 @@ export const authApi = {
       throw new Error('Failed to refresh token');
     }
   }
+};
+
+export const usersApi = {
+  async getMe(signal?: AbortSignal): Promise<UserProfile> {
+    const response = await api.get<UserProfile>('/users/me', { signal });
+    return response.data;
+  },
 };
 
 export interface GamesProceedRequest {

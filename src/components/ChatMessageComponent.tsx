@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-  User,
   Bot,
   Loader2,
   AlertTriangle,
@@ -11,9 +10,12 @@ import { ChatMessage, ChatMessageItem } from '../types';
 import { GameRecommendationCard } from './GameRecommendationCard';
 import { ReasoningBlock } from './ReasoningBlock';
 import { TextBlock } from './TextBlock';
+import { SteamAvatar } from './SteamAvatar';
 
 interface ChatMessageComponentProps {
   message: ChatMessage;
+  userAvatarUrl?: string | null;
+  userSteamId?: string;
   /** Вызывается, когда пользователь жмёт retry на error-сообщении. */
   onRetry?: (message: ChatMessage) => void;
 }
@@ -30,7 +32,12 @@ interface ChatMessageComponentProps {
  *                             см. api-contract.md §4.6 / §4.7)
  *  - unknown                → fallback на content
  */
-export const ChatMessageComponent: React.FC<ChatMessageComponentProps> = ({ message, onRetry }) => {
+export const ChatMessageComponent: React.FC<ChatMessageComponentProps> = ({
+  message,
+  userAvatarUrl = null,
+  userSteamId,
+  onRetry,
+}) => {
   const isStatus = message.metaType === 'status' && !!message.status;
   const isError = message.metaType === 'error' && !!message.error;
   const isHiddenAgentStep =
@@ -124,9 +131,7 @@ export const ChatMessageComponent: React.FC<ChatMessageComponentProps> = ({ mess
       </div>
 
       {message.type === 'user' && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-blue-600 flex items-center justify-center">
-          <User className="h-4 w-4 text-white" />
-        </div>
+        <SteamAvatar avatarUrl={userAvatarUrl} steamId={userSteamId} size="sm" />
       )}
     </motion.div>
   );

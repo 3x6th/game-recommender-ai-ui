@@ -18,6 +18,28 @@ describe('ChatMessageComponent', () => {
     expect(screen.getByText('A regular assistant reply')).toBeInTheDocument();
   });
 
+  it('shows the Steam avatar next to a user message', () => {
+    const message: ChatMessage = {
+      id: 'user-1',
+      type: 'user',
+      content: 'Recommend something new',
+      timestamp: new Date('2026-07-02T10:00:00Z'),
+    };
+
+    render(
+      <ChatMessageComponent
+        message={message}
+        userAvatarUrl="https://cdn.example/avatar.jpg"
+        userSteamId="76561198000000000"
+      />,
+    );
+
+    expect(screen.getByRole('img', { name: 'Steam avatar for 76561198000000000' })).toHaveAttribute(
+      'src',
+      'https://cdn.example/avatar.jpg',
+    );
+  });
+
   it('renders composite cards in text, reasoning, game order', () => {
     const message: ChatMessage = {
       id: 'message-1',

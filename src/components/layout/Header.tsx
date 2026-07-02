@@ -1,17 +1,19 @@
 import { Gamepad2, Heart, LogOut, LogIn, Menu } from "lucide-react";
-import { API_BASE_URL } from "../../services/api";
+import { API_BASE_URL, UserProfile } from "../../services/api";
+import { SteamAvatar } from "../SteamAvatar";
 
 interface HeaderProps {
     authData: { steamId?: string } | null;
+    userProfile: UserProfile | null;
     onLogout: () => void;
     sidebarOpen: boolean;
     onToggleSidebar: () => void;
 }
 
-export function Header({ authData, onLogout, sidebarOpen, onToggleSidebar }: HeaderProps) {
+export function Header({ authData, userProfile, onLogout, sidebarOpen, onToggleSidebar }: HeaderProps) {
     return (
         <div className="mb-6 flex shrink-0 items-center justify-between sm:mb-8">
-            <div className="flex items-center gap-2 opacity-90 select-none">
+            <div className="flex min-w-0 items-center gap-2 opacity-90 select-none">
                 <button
                     type="button"
                     onClick={onToggleSidebar}
@@ -33,7 +35,7 @@ export function Header({ authData, onLogout, sidebarOpen, onToggleSidebar }: Hea
           </span>
                 )}
             </div>
-            <div className="flex items-center gap-4">
+            <div className="ml-2 flex shrink-0 items-center gap-2">
                 {!authData?.steamId ? (
                     <button
                         onClick={() => {
@@ -51,14 +53,20 @@ export function Header({ authData, onLogout, sidebarOpen, onToggleSidebar }: Hea
                         <span className="hidden sm:inline">Login via Steam</span>
                     </button>
                 ) : (
-                    <button
-                        onClick={onLogout}
-                        className="group relative inline-flex h-9 items-center justify-center gap-2 overflow-hidden rounded-lg border border-white/15 px-3 text-sm font-medium text-zinc-300 backdrop-blur-md transition hover:border-white/30 hover:bg-white/10"
-                        title="Logout"
-                    >
-                        <LogOut className="h-4 w-4" />
-                        <span className="hidden sm:inline">Logout</span>
-                    </button>
+                    <>
+                        <SteamAvatar
+                            avatarUrl={userProfile?.avatarUrl ?? null}
+                            steamId={authData.steamId}
+                        />
+                        <button
+                            onClick={onLogout}
+                            className="group relative inline-flex h-9 items-center justify-center gap-2 overflow-hidden rounded-lg border border-white/15 px-3 text-sm font-medium text-zinc-300 backdrop-blur-md transition hover:border-white/30 hover:bg-white/10"
+                            title="Logout"
+                        >
+                            <LogOut className="h-4 w-4" />
+                            <span className="hidden sm:inline">Logout</span>
+                        </button>
+                    </>
                 )}
             </div>
         </div>
