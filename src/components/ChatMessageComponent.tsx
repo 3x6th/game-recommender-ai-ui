@@ -112,9 +112,11 @@ export const ChatMessageComponent: React.FC<ChatMessageComponentProps> = ({ mess
             )}
             {message.items && message.items.length > 0 && (
               <div className="mt-3 space-y-3">
-                {message.items.map((item, idx) => (
-                  <ItemRenderer key={idx} item={item} />
-                ))}
+                {[...message.items]
+                  .sort((left, right) => ITEM_ORDER[left.kind] - ITEM_ORDER[right.kind])
+                  .map((item, idx) => (
+                    <ItemRenderer key={idx} item={item} />
+                  ))}
               </div>
             )}
           </>
@@ -128,6 +130,12 @@ export const ChatMessageComponent: React.FC<ChatMessageComponentProps> = ({ mess
       )}
     </motion.div>
   );
+};
+
+const ITEM_ORDER: Record<ChatMessageItem['kind'], number> = {
+  text: 0,
+  reasoning: 1,
+  game: 2,
 };
 
 /**
