@@ -30,6 +30,7 @@ export default function ChatPage() {
         loadMoreMessages,
         messagesError,
         appendMessages,
+        replaceMessage,
         selectChat,
     } = useChatContext();
 
@@ -118,6 +119,8 @@ export default function ChatPage() {
             type: 'user',
             content,
             timestamp: new Date(),
+            clientRequestId,
+            tags: [...active],
         };
 
         setQuery("");
@@ -161,6 +164,43 @@ export default function ChatPage() {
                     timestamp: new Date(),
                 },
             ]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const retryMessage = async (errorMessage: ChatMessage) => {
+        if (isLoading || !currentChatId) return;
+
+        const errorIndex = currentMessages.findIndex((message) => message.id === errorMessage.id);
+        const userMessage = errorIndex >= 0
+            ? currentMessages
+                .slice(0, errorIndex)
+                .reverse()
+                .find((message) => message.type === 'user')
+            : undefined;
+        const clientRequestId = userMessage?.clientRequestId;
+
+        if (!userMessage || !clientRequestId) {
+            console.error('Cannot retry AI response: source USER turn was not found');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const steamIdToSend = steamIdOverride.length === 17 ? steamIdOverride : undefined;
+            const response = await gamesApi.proceed({
+                content: userMessage.content,
+                tags: userMessage.tags ?? [],
+                clientRequestId,
+                chatId: currentChatId,
+                ...(steamIdToSend ? { steamId: steamIdToSend } : {}),
+            });
+            const aiMessages = (response.messages ?? []).map(fromChatMessageDto);
+            replaceMessage(errorMessage.id, aiMessages);
+        } catch (error) {
+            // Keep the original retryable error visible so the user can try again.
+            console.error('Error retrying message:', error);
         } finally {
             setIsLoading(false);
         }
@@ -283,7 +323,7 @@ export default function ChatPage() {
                                 currentChatId={currentChatId}
                                 userAvatarUrl={userProfile?.avatarUrl ?? null}
                                 userSteamId={authData?.steamId}
-                                onRetry={currentChatId ? () => selectChat(currentChatId) : undefined}
+                                onRetry={currentChatId && !isLoading ? retryMessage : undefined}
                                 onSelectChat={selectChat}
                                 onScroll={handleHistoryScroll}
                                 onMessagesChange={() => {}}

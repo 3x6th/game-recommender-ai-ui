@@ -84,6 +84,10 @@ export interface ChatMessage {
   status?: { code?: string; message?: string; state?: string };
   /** Error-payload (PCAI-112): красный блок + retry если retryable. */
   error?: { code?: string; message?: string; retryable?: boolean };
+  /** Idempotency key of the USER turn; reused by Retry without duplicating it. */
+  clientRequestId?: string;
+  /** Tags captured when the USER turn was submitted. */
+  tags?: string[];
 }
 
 export interface BurnoutLevel {
