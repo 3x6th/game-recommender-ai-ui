@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { ChatMessage } from '../types';
 import { ChatMessageComponent } from './ChatMessageComponent';
 
@@ -73,5 +73,26 @@ describe('ChatMessageComponent', () => {
     expect(text.compareDocumentPosition(reasoning) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(reasoning.compareDocumentPosition(game) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelectorAll('strong')).toHaveLength(1);
+  });
+
+  it('passes the retryable error message to the retry handler', () => {
+    const onRetry = vi.fn();
+    const message: ChatMessage = {
+      id: 'error-1',
+      type: 'ai',
+      content: 'AI is temporarily unavailable',
+      timestamp: new Date('2026-07-20T11:13:44Z'),
+      metaType: 'error',
+      error: {
+        code: 'AI_UNAVAILABLE',
+        message: 'AI is temporarily unavailable',
+        retryable: true,
+      },
+    };
+
+    render(<ChatMessageComponent message={message} onRetry={onRetry} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(onRetry).toHaveBeenCalledWith(message);
   });
 });
