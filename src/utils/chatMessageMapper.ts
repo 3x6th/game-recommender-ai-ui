@@ -98,10 +98,20 @@ export function fromChatMessageDto(dto: ChatMessageDto): ChatMessage {
   let items: ChatMessageItem[] | undefined;
   let status: ChatMessage['status'];
   let errorPayload: ChatMessage['error'];
+  let clientRequestId: string | undefined;
+  let tags: string[] | undefined;
   let content = dto.content ?? '';
 
   if (meta?.payload) {
     const payload = meta.payload as Record<string, unknown>;
+
+    if (dto.role === 'USER') {
+      clientRequestId =
+        typeof payload.clientRequestId === 'string' ? payload.clientRequestId : undefined;
+      tags = Array.isArray(payload.tags)
+        ? payload.tags.filter((tag): tag is string => typeof tag === 'string')
+        : undefined;
+    }
 
     if (meta.type === 'cards') {
       items = parseItems(payload.items);
@@ -133,5 +143,7 @@ export function fromChatMessageDto(dto: ChatMessageDto): ChatMessage {
     items,
     status,
     error: errorPayload,
+    clientRequestId,
+    tags,
   };
 }

@@ -16,7 +16,7 @@ interface MessagesContainerProps {
     currentChatId: string | null;
     userAvatarUrl: string | null;
     userSteamId?: string;
-    onRetry: (() => void) | undefined;
+    onRetry: ((message: ChatMessage) => void) | undefined;
     onSelectChat: (chatId: string) => void;
     onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
     onMessagesChange?: () => void;

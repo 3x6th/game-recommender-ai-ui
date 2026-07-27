@@ -60,6 +60,8 @@ interface ChatContextType {
     messages: ChatMessage[],
     opts?: { chatId?: string | null; refreshList?: boolean },
   ) => void;
+  /** Atomically replaces a transient message (for example, a retryable error). */
+  replaceMessage: (messageId: string, messages: ChatMessage[]) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -258,6 +260,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [],
   );
 
+  const replaceMessage = useCallback((messageId: string, messages: ChatMessage[]) => {
+    setCurrentMessages((prev) => {
+      const index = prev.findIndex((message) => message.id === messageId);
+      if (index < 0) return [...prev, ...messages];
+      return [...prev.slice(0, index), ...messages, ...prev.slice(index + 1)];
+    });
+  }, []);
+
   const hasMoreChats = chatsOffset < totalChats;
 
   const value = useMemo<ChatContextType>(
@@ -279,6 +289,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loadMoreMessages,
       refreshChats,
       appendMessages,
+      replaceMessage,
     }),
     [
       chats,
@@ -298,6 +309,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loadMoreMessages,
       refreshChats,
       appendMessages,
+      replaceMessage,
     ],
   );
 
